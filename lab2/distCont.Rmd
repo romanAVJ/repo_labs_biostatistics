@@ -1,0 +1,617 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r packages, include = FALSE}
+library(actuar)
+library(rmutil)
+
+```
+
+
+
+# VARIABLES CONTINUAS
+
+Se pueden caracterizar totalmente por su función de riesgo $h(t)$. Veamos a contunación las siguientes familias.
+
+# Exponencial
+Carecterizamos las exponenciales, sea $\lambda = 0.5$
+```{r exponencial,message = FALSE, echo = FALSE}
+
+t<-seq(from = 0, to = 12,length.out = 100)
+lam<-0.5
+n<-length(t)
+ft<-dexp(t,lam)
+st<-1-pexp(t,lam)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,round(ht,2),type="l")
+```
+
+
+# Weibull
+Familia Weibull. Una fdd con $\alpha = 0.5$ y $\lambda = 1$. 
+```{r wiebull,message = FALSE, echo = FALSE}
+t<-seq(0,20,,100)
+alpha<-0.5
+lam<-1
+a<-alpha
+b<-lam^(-1/a)
+n<-length(t)
+ft<-dweibull(t,a,b)
+st<-1-pweibull(t,a,b)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+```
+
+Modificando los valores para $\alpha , \lambda$, se muestran las siguientes funciones.
+
+### $\alpha$ fija
+Veamos como se cruzan las funciones de supervivencia para $\alpha_{0}$ fija y con $\lambda$ variante. Sea $\alpha_{0} = 0.5$ 
+
+__NOTA__: Si $\alpha < 0.5$ entonces la función de supervivencia es decreciente. En el otro caso, es creciente. 
+
+#### Gráficas individuales
+```{r ,message = FALSE, echo = FALSE}
+i <- 1
+#survival
+for(lambda in c(0.5,1,5,10))
+{
+    t<-seq(0,20,,100)
+    alpha<-0.5
+    lam<-lambda
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+    
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+# hazard
+i <- 1
+for(lambda in c(0.5,1,5,10))
+{
+    t<-seq(0,20,,100)
+    alpha<-0.5
+    lam<-lambda
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+    
+    #plot
+    if(i == 1)
+    {
+      plot(t,ht,type="l", col = i)
+    }
+    else{
+      lines(t,ht,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+```
+
+#### Gráficas conjuntas
+```{r Weibullwithalllambda moving,message = FALSE, echo = FALSE}
+t<-seq(0,20,,100)
+alpha<-0.5
+par(mfrow=c(1,3))
+
+#distribution
+i <- 1
+for(lambda in c(0.5,1,5,10))
+{
+    lam<-lambda
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,ft,type="l", col = i)
+    }
+    else{
+      lines(t,ft,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+#survival
+i <- 1
+for(lambda in c(0.5,1,5,10))
+{
+    lam<-lambda
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    st<-1-pweibull(t,a,b)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+#hazard
+i <- 1
+for(lambda in c(0.5,1,5,10))
+{
+    lam<-lambda
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+
+```
+
+### $\lambda$ fija
+Veamos como se cruzan las funciones de supervivencia para $\lambda{0}$ fija y con $\alpha$ variante. Sea $\lambda_{0} = 1$ 
+
+#### Gráficas individuales
+
+```{r Weibullwithlambdafixed,message = FALSE, echo = FALSE}
+
+i <- 1
+# survival
+for(alpha in c(0.25,0.5,0.75,3))
+{
+    t<-seq(0,20,,100)
+    lam<-1
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+    
+    #plot St
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1  
+}
+
+#hazard
+i <- 1
+for(alpha in c(0.25,0.5,0.75,3))
+{
+    t<-seq(0,20,,100)
+    lam<-1
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+    
+    #plot St
+    if(i == 1)
+    {
+      plot(t,ht,type="l", col = i)
+    }
+    else{
+      lines(t,ht,type="l", col = i)
+    }
+    
+    i <- i + 1  
+}
+
+
+
+
+
+```
+
+Viendolo de manera conjunta
+
+#### Gráficas conjuntas
+
+```{r Weibullwithallalphamoving,message = FALSE, echo = FALSE}
+t<-seq(0,20,,100)
+lam<- 1
+par(mfrow=c(1,3))
+
+#distribution
+i <- 1
+for(alpha in  c(0.25,0.5,0.75,3))
+{
+    
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,ft,type="l", col = i)
+    }
+    else{
+      lines(t,ft,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+#survival
+i <- 1
+for(alpha in  c(0.25,0.5,0.75,3))
+{
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    st<-1-pweibull(t,a,b)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+#hazard
+i <- 1
+for(alpha in  c(0.25,0.5,0.75,3))
+{
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dweibull(t,a,b)
+    st<-1-pweibull(t,a,b)
+    ht<-ft/st
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+
+```
+
+
+# Lognormal
+
+Todas las funciones de riesgo $h(t)$ están en _forma de montaña_.
+```{r lognormal, message = FALSE, echo = FALSE}
+t<-seq(0,5,,100)
+mu<-0
+sigma<-2
+n<-length(t)
+ft<-dlnorm(t,mu,sigma)
+st<-1-plnorm(t,mu,sigma)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+```
+
+
+# Gamma
+
+Notas: 
+
+- Si $\alpha < 1$ entonces $h(t)$ es decreciente.
+- Si $\alpha > 1$ entonces $h(t)$ es creciente.
+- Si $\alpha = 1$ entonces $h(t)$ es cte. (caso exponencial)
+ 
+ 
+Moviendo la alpha 
+
+```{r Gamma, message = FALSE, echo = FALSE}
+t<-seq(0,20,,100)
+lam<- 2
+par(mfrow=c(1,3))
+vec_alphas <- c(0.5,1,2)
+
+#distribution
+i <- 1
+for(alpha in vec_alphas)
+{
+    
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dgamma(t,a,b)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,ft,type="l", col = i)
+    }
+    else{
+      lines(t,ft,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+
+#survival
+i <- 1
+for(alpha in vec_alphas)
+{
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    st<-1-pgamma(t,a,b)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+#hazard
+i <- 1
+for(alpha in vec_alphas)
+{
+    a<-alpha
+    b<-lam^(-1/a)
+    n<-length(t)
+    ft<-dgamma(t,a,b)
+    st<-1-pgamma(t,a,b)
+    ht<-ft/st
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,ht,type="l", col = i)
+    }
+    else{
+      lines(t,ht,type="l", col = i)
+    }
+    
+    i <- i + 1
+}
+
+```
+
+
+
+# Loglogistic
+
+Con $\lambda = 1$ y $\alpha \in \{0.5,1,2\}$
+
+```{r loglogistic, message = FALSE, echo = FALSE}
+
+t<-seq(0,5,,100)
+lam<- 1
+par(mfrow=c(1,3))
+vec_alphas <- c(0.5,1,2)
+
+#distribution
+i <- 1
+for(alpha in vec_alphas)
+{
+    
+    a<-alpha
+    s<-(1/lam)^(1/alpha)
+    n<-length(t)
+    ft<-dllogis(t,shape = a, scale = s)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,ft,type="l", col = i)
+    }
+    else{
+      lines(t,ft,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+
+#survival
+i <- 1
+for(alpha in vec_alphas)
+{
+    a<-alpha
+    s<-(1/lam)^(1/alpha)
+    n<-length(t)
+    st<-1-pllogis(t,shape = a, scale = s)
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,st,type="l", col = i)
+    }
+    else{
+      lines(t,st,type="l", col = i)
+    }
+    
+    i <- i + 1
+  
+}
+
+#hazard
+i <- 1
+for(alpha in vec_alphas)
+{
+  
+  
+
+    a<-alpha
+    s<-(1/lam)^(1/alpha)
+    n<-length(t)
+    ft<-dllogis(t,shape = a, scale = s)
+    st<-1-pllogis(t,shape = a,scale = s)
+    ht<-ft/st
+
+    #plot
+    if(i == 1)
+    {
+      plot(t,ht,type="l", col = i)
+    }
+    else{
+      lines(t,ht,type="l", col = i)
+    }
+    
+    i <- i + 1
+}
+
+
+```
+
+
+# Generalized gamma
+
+__Notas__: 
+
+- Caso $\alpha = \beta = 1$: Es una _exponencial_.
+- Caso $\beta = 1$: Es una _weibull_.
+- Caso $\alpha = 1$: Es una _gamma_.
+- Caso $\beta \to \infty$: Una _lognormal_.
+
+### Caso cualquiera
+
+```{r Gamma Gener, message = FALSE, echo = FALSE}
+
+t<-seq(0.01,100,,100)
+alpha<-0.03
+lam<-1.4
+beta<-100
+a<-alpha
+s<-beta
+m<-beta/(lam^(1/a))
+n<-length(t)
+ft<-dggamma(t,s,m,a)
+st<-1-pggamma(t,s,m,a)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+title(main = "Gamma Generalizada")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+
+```
+
+### Caso exponencial
+```{r,  message = FALSE, echo = FALSE}
+
+t<-seq(0.01,100,,100)
+alpha<- beta <- 0.5
+lam<-1.4
+a<-alpha
+s<-beta
+m<-beta/(lam^(1/a))
+n<-length(t)
+ft<-dggamma(t,s,m,a)
+st<-1-pggamma(t,s,m,a)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l", col = 2)
+title(main = "Gamma Generalizada, alpha = beta = 1")
+plot(t,st,type="l", col = 2)
+plot(t,ht,type="l", col = 2)
+
+```
+### Caso weibull
+
+```{r,  message = FALSE, echo = FALSE}
+t<-seq(0.01,100,,100)
+alpha<- 1
+lam<-2
+beta<-100
+a<-alpha
+s<-beta
+m<-beta/(lam^(1/a))
+n<-length(t)
+ft<-dggamma(t,s,m,a)
+st<-1-pggamma(t,s,m,a)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+title(main = "Gamma Generalizada")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+```
+
+

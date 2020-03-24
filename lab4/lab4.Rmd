@@ -1,0 +1,411 @@
+---
+title: "MV truncamiento y censura"
+author: "Roman"
+date: "23/3/2020"
+output: html_document
+---
+
+
+# Estimación máxima verosímil 
+
+Definimos distintas formas de calcular la verosimilitud para los distintos tipos de datos. Es decir para el caso de datos _censuardos_, _truncados_ ó _exactos_.
+```{r funciones verosimilitud}
+#--- EMV exponencial ---
+#funciones de ver
+#Obs exactas
+lik1<-function(lam,x){
+  n<-length(x)
+  out<-1
+  for (i in 1:n){
+    out<-out*dexp(x[i],lam)
+  }
+  out
+}
+#Obs excatas + censura por derecha
+#(delta=1, exacta; delta=0, censura der.)
+lik2<-function(lam,tt,delta){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    out<-out*(dexp(tt[i],lam)^delta[i])*((1-pexp(tt[i],lam))^(1-delta[i]))
+  }
+  out
+}
+#Obs excatas + censura por derecha e izquierda
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik3<-function(lam,tt,delta){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    if (delta[i]==1) {out<-out*dexp(tt[i],lam)}
+    if (delta[i]==0) {out<-out*(1-pexp(tt[i],lam))}
+    if (delta[i]==2) {out<-out*pexp(tt[i],lam)}
+  }
+  out
+}
+#Obs excatas + cens der e izq + trunc izq 
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik4<-function(lam,tt,delta,u=rep(0,times=length(tt))){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){ if (is.na(tt[i])==FALSE) {
+    if (delta[i]==1) {out<-out*dexp(tt[i],lam)/(1-pexp(u[i],lam))}
+    if (delta[i]==0) {out<-out*(1-pexp(tt[i],lam))/(1-pexp(u[i],lam))}
+    if (delta[i]==2) {out<-out*(pexp(tt[i],lam)-pexp(u[i],lam))/(1-pexp(u[i],lam))}
+  }
+  }
+  out
+}
+```
+
+
+# Ejemplos con verosimilitud
+
+## Ejemplos exactos, censura por derecha y truncamiento por izquierda.
+
+### Modelo exponencial
+```{r ejemplos verosimilitud}
+#Ejemplo 1 (exactas, censura por der y trunc izq)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-length(delta[delta==0])/n
+print(propc)
+#Truncamiento izquierda
+u<-seq(1,1,length.out=n)
+ttrunc<-ifelse(tt>=u,tt,NA)
+#cbind(x,tt,delta,u,ttrunc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik4(lam,ttrunc,delta,u)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+```
+
+
+```{r ejemplos verosimilitud}
+#Ejemplo 2 (efecto de tirar censura a la basura)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-length(delta[delta==0])/n
+print(propc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik2(lam,tt[delta==1],delta[delta==1])
+length(tt[delta==1])
+y2<-lik2(lam,tt,delta)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+```
+
+
+```{r ejemplos verosimilitud}
+#Ejemplo 3 (censura por la der y por la izq, separados)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-length(delta[delta==0])/n
+print(propc)
+#Censura por izquierda
+lamci<-0.5
+ceni<-rexp(n,lamci)
+tti<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+#cbind(x,ceni,tti,delta)
+propci<-length(deltai[deltai==2])/n
+print(propci)
+#cbind(x,cen,tt,delta,ceni,tti,deltai)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik3(lam,tti,deltai)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+```
+
+
+```{r ejemplos verosimilitud}
+#Ejemplo 4 (doble censura)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-0.5
+cen<-rexp(n,lamc)
+#cen<-rep(2,n)
+#Censura por izquierda
+lamci<-2
+ceni<-rexp(n,lamci)
+#ceni<-rep(0.3,n)
+#Doble censura
+tt<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+delta<-deltai
+delta[deltai==1]<-ifelse(tt[deltai==1]<=cen[deltai==1],1,0)
+tt[deltai==1]<-ifelse(x[deltai==1]<=cen[deltai==1],x[deltai==1],cen[deltai==1])
+#cbind(x,cen,ceni,tt,deltai,delta)
+prop.table(table(delta))
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik3(lam,tt,delta)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+```
+
+
+```{r ejemplos verosimilitud}
+#--- EMV weibull ---
+#Obs excatas + cens der e izq + trunc izq 
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik4w<-function(a,b,tt,delta,u=rep(0,times=length(tt))){
+  m<-length(a)
+  outm<-matrix(NA,nrow=m,ncol=m)
+  for (j in 1:m){
+    n<-length(tt)
+    out<-1
+    for (i in 1:n){ if (is.na(tt[i])==FALSE) {
+      if (delta[i]==1) {out<-out*dweibull(tt[i],a,b[j])/(1-pweibull(u[i],a,b[j]))}
+      if (delta[i]==0) {out<-out*(1-pweibull(tt[i],a,b[j]))/(1-pweibull(u[i],a,b[j]))}
+      if (delta[i]==2) {out<-out*(pweibull(tt[i],a,b[j])-pweibull(u[i],a,b[j]))/(1-pweibull(u[i],a,b[j]))}
+    }
+    }
+    out
+    outm[,j]<-out
+  }
+  outm
+}
+#Ejemplos W
+alf0<-2
+lam0<-1
+a0<-alf0
+b0<-lam0^(-1/a0)
+n<-50
+x<-rweibull(n,a0,b0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-1-sum(delta)/n
+print(propc)
+#Truncamiento izquierda
+u<-seq(0.5,0.5,length.out=n)
+ttrunc<-ifelse(tt>=u,tt,NA)
+#cbind(x,tt,delta,u,ttrunc)
+#Evaluacion
+m<-100
+a<-seq(0.2,3.8,,m)
+b<-seq(0.2,3.8,,m)
+y1<-lik4w(a,b,x,seq(1,1,,n))
+y2<-lik4w(a,b,tt,delta)
+y3<-lik4w(a,b,ttrunc,delta,u)
+par(mfrow=c(1,1))
+#
+contour(a,b,y1,col=1)
+pos<-which(y1==max(y1),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=1,pch=15)
+print(c(a[pos[1]],b[pos[2]]))
+points(a0,b0,col=4,pch=20)
+#
+contour(a,b,y2,col=2)
+pos<-which(y2==max(y2),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=2,pch=15)
+print(c(a[pos[1]],b[pos[2]]))
+points(a0,b0,col=4,pch=20)
+#
+contour(a,b,y3,col=3)
+pos<-which(y3==max(y3),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=3,pch=15)
+print(c(a[pos[1]],b[pos[2]]))
+points(alf0,lam0,col=4,pch=20)
+
+```
+
+
+# Estimar con comando _survreg_
+
+Este comando escribe los parámetros a estimar como localización y escala, $a,b$ y los estima. 
+
+```{r}
+#load library
+library(survival)
+
+```
+
+
+
+
+
+```{r}
+
+#EMV con comando survreg
+t<-Surv(tt,delta)
+xfitp<-survreg(t~1,dist="weibull")
+summary(xfitp)
+as<-xfitp$coefficients
+bs<-xfitp$scale
+alf<-1/bs
+lam<-exp(-as/bs)
+a<-alf
+b<-lam^(-1/alf)
+print(c(a,b))
+#
+xfitp<-survreg(t~1,dist="loglogistic")
+summary(xfitp)
+#
+xfitp<-survreg(t~1,dist="lognormal")
+summary(xfitp)
+
+
+```
+
+
+# Estimación No paramétrica
+
+## Ejemplo: Número de millas hasta que falla a locomotora
+
+
+En este ejemplo la medida no es el tiempo, si no una medición, la cual es en este caso el número de millas.
+```{r}
+
+#-Datos KM- 
+time<-c(0.8, 1.0, 2.7, 3.1, 5.4, 7.0, 9.2, 12.1)
+delta<-c(1,0,0,1,1,0,1,0)
+km<-data.frame(time=time,delta=delta)
+
+#-Eschmee & Nelson (1977): The number of thousand miles-
+#-at which different locomotive controls failed.-
+time<-c(22.5,37.5,46,48.5,51.5,53,54.5,57.5,66.5,68,
+69.5,76.5,77,78.5,80,81.5,82,83,84,91.5,93.5,102.5,
+107,108.5,112.5,113.5,116,117,118.5,119,120,122.5,123,
+127.5,131,132.5,134,rep(135,59))
+delta<-c(rep(1,37),rep(0,59))
+locomotive<-data.frame(time=time,delta=delta)
+
+
+
+```
+
+
+
+# Ejemplo 2
+
+Datos sin censura. Son el tiempo de vida de los billetes de doscientes de Banxico. Como no hay censura en los datos, se puede hacer un _EDA_ sin problemas.
+```{r}
+bill<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Billete200.txt",header=TRUE)
+
+#EDA
+#histogram
+hist(bill$Vida)
+
+#boxplot
+boxplot(bill$Vida)
+
+#summary
+summary(bill$Vida)
+
+
+
+```
+
+Crear el _objeto_ de supervivencia en R.
+
+```{r}
+#Libreria survival
+#Opcion 1
+t<-Surv(bill$Vida,bill$Consecutivo/bill$Consecutivo)
+
+#Opcion 2
+#--- Estimador parametrico ---
+#Ajuste
+#weibull
+xfit<-survreg(t~1,dist="weibull") # here you can change what type of distribution
+summary(xfit)
+
+#log-logistic
+xfit<-survreg(t~1,dist="loglogistic") # here you can change what type of distribution
+summary(xfit)
+
+#log-normal
+xfit<-survreg(t~1,dist="lognormal") # here you can change what type of distribution
+summary(xfit)
+
+```
+
+Por la log-verosimilitud, observamos que el mejor modelo es el __log-logistico__. 
+Para ver "visualmente" el ajuste, veamos el histograma vs el modelo teórico
+
+```{r}
+t <- seq(0,5,,100) 
+
+
+
+
+```
+
+
+

@@ -1,0 +1,254 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Función de verosimilitud 
+
+## Caso: $X \sim exp(\lambda)$
+
+```{r EMV exponencial funciones}
+#funciones de ver
+#Obs exactas
+lik1<-function(lam,tt){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    out<-out*dexp(tt[i],lam)
+  }
+  out
+}
+
+#Obs excatas + censura por derecha
+#(delta=1, exacta; delta=0, censura der.)
+lik2<-function(lam,tt,delta){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    out<-out*(dexp(tt[i],lam)^delta[i])*((1-pexp(tt[i],lam))^(1-delta[i]))
+  }
+  out
+}
+#Obs excatas + censura por derecha e izquierda
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik3<-function(lam,tt,delta){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    if (delta[i]==1) {out<-out*dexp(tt[i],lam)}
+    if (delta[i]==0) {out<-out*(1-pexp(tt[i],lam))}
+    if (delta[i]==2) {out<-out*pexp(tt[i],lam)}
+  }
+  out
+}
+#Obs excatas + cens der e izq + trunc izq 
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik4<-function(lam,tt,delta,u=rep(0,times=length(tt))){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){ if (is.na(tt[i])==FALSE) {
+    if (delta[i]==1) {out<-out*dexp(tt[i],lam)/(1-pexp(u[i],lam))}
+    if (delta[i]==0) {out<-out*(1-pexp(tt[i],lam))/(1-pexp(u[i],lam))}
+    if (delta[i]==2) {out<-out*(pexp(tt[i],lam)-pexp(u[i],lam))/(1-pexp(u[i],lam))}
+  }
+  }
+  out
+}
+
+```
+
+
+# Ejemplos
+
+```{r ejemplo1}
+set.seed(41) #jugar con la semilla
+#Ex1
+lam0<-2
+n<-50 #number of simulations
+x<-rexp(n,lam0) #sim
+
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-1-sum(delta)/n
+print(propc) #rate of censore
+#Truncamiento izquierda
+u<-seq(0.5,0.5,length.out=n)
+ttrunc<-ifelse(tt>=u,tt,NA)
+#cbind(x,tt,delta,u,ttrunc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik4(lam,ttrunc,delta,u)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=1)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=1)
+```
+
+__NOTA__:
+
+- Entre mayor sea la censura, la verosimilitud (roja), será mucho más ancha.
+- Notar también que en medida que aumente el tamaño de muestra, la incertidumbre decrece.
+
+
+__NOTA2__:
+
+- 
+
+
+#Ejemplos
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-1-sum(delta)/n
+print(propc)
+#Truncamiento izquierda
+u<-seq(0.5,0.5,length.out=n)
+ttrunc<-ifelse(tt>=u,tt,NA)
+#cbind(x,tt,delta,u,ttrunc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik4(lam,ttrunc,delta,u)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+
+#Ejemplo 2 (efecto de tirar a la basura censura)
+lam0<-1
+n<-200
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-1-sum(delta)/n
+print(propc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik2(lam,tt[delta==1],delta[delta==1])
+length(tt[delta==1])
+y2<-lik2(lam,tt,delta)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+
+#Ejemplo 3 (censura por la izq)
+lam0<-1
+n<-200
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-1-sum(delta)/n
+print(propc)
+#Censura por izquierda
+lamci<-0.5
+ceni<-rexp(n,lamci)
+tti<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+#cbind(x,ceni,tti,delta)
+propci<-1-length(deltai[deltai==1])/n
+print(propci)
+cbind(x,cen,tt,delta,ceni,tti,deltai)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik3(lam,tti,deltai)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+
+#Ejemplo 4 (doble censura)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+#lamc<-0.5
+#cen<-rexp(n,lamc)
+cen<-rep(2,n)
+#Censura por izquierda
+#lamci<-2
+#ceni<-rexp(n,lamci)
+ceni<-rep(0.3,n)
+#Doble censura
+tt<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+delta[deltai==1]<-ifelse(tt[deltai==1]<=cen[deltai==1],1,0)
+tt[deltai==1]<-ifelse(x[deltai==1]<=cen[deltai==1],x[deltai==1],cen[deltai==1])
+#cbind(x,cen,ceni,tt,deltai,delta)
+prop.table(table(delta))
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik3(lam,tti,deltai)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+
