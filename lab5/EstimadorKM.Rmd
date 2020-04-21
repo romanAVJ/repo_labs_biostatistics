@@ -1,0 +1,83 @@
+---
+title: "lab5"
+author: "Román"
+date: "30/3/2020"
+output: html_document
+---
+# Estimación No Paramétrica de $S_{X}(t)$.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(survival)
+library(KMsurv)
+```
+
+
+# Estimación Kaplan Meier
+```{r}
+
+km<-data.frame(time=time,delta=delta)
+#-remission in acute leukemia patients.-
+time<-c(6,6,6,6,7,9,10,10,11,13,16,17,19,20,22,23,25,
+        32,32,34,35,1,1,2,2,3,4,4,5,5,8,8,8,8,11,11,12,12,15,
+        17,22,23)
+delta<-c(1,1,1,0,1,0,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,
+         rep(1,21))
+group<-c(rep(1,21),rep(2,21))
+mp6<-data.frame(time=time,delta=delta,group=group)
+data(drug6mp)
+
+```
+
+# Crear objeto de supervivencia
+
+Cargar datos
+```{r}
+#Libreria survival
+#Opcion 1
+t1<-Surv(drug6mp$t1,rep(1,length(drug6mp$t1)))
+t2<-Surv(drug6mp$t2,drug6mp$relapse)
+
+```
+
+Análisis KM
+Caso sin correción (plain)
+
+Nota: Tengo un fallo en el agrupamiento de los intervalos
+```{r}
+#Calculo del estimador
+xfit1<-survfit(t2~1)
+xfit2<-survfit(t1~1,conf.type="plain")
+# xfit3<-survfit(t1~mp6$group,conf.type="log-log")
+
+list_fits <- list(xfit1,xfit2)
+#Presentacion de estimador
+for(fit in list_fits){
+  print(fit)
+  summary(fit)
+  
+}
+
+#Grafica del estimador
+for(fit in list_fits){
+  par(mfrow=c(1,1))
+  plot(fit,conf.int=TRUE)
+  plot(fit,conf.int=TRUE,lty=c(1,2,2),col=1:2)
+  plot(fit,conf.int=TRUE,lty=c(1,2,2),col=1)
+  #Informacion que contiene el objeto xfit
+  names(fit)
+}
+```
+
+Caso con correción
+
+
+```{r}
+#Opcion 2
+t<-with(km,Surv(time,delta))
+#Opcion 3
+attach(breakdown)
+t<-Surv(time,delta)
+t<-Surv(Vida,seq(1,1,,length(Vida)))
+```
+

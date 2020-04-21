@@ -1,0 +1,161 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+#libraries
+library(survival)
+
+# load data
+bill<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Billete200.txt",header=TRUE)
+
+
+```
+
+
+Kaplan-Meyer estimator
+```{r}
+#create Survival object
+t<-Surv(bill$Vida,bill$Consecutivo/bill$Consecutivo)
+
+
+#KM estimator
+xfit1<-survfit(t~1)
+xfit2<-survfit(t~1,conf.type="plain")
+
+#look estimator
+print(xfit1)
+head(summary(xfit1))
+head(names(xfit1))
+```
+
+
+```{r}
+#plott estimator
+par(mfrow=c(1,1))
+plot(xfit1,conf.int=TRUE)
+plot(xfit1,conf.int=TRUE,lty=c(1,2,2),col=1:2)
+plot(xfit1,conf.int=TRUE,lty=c(1,2,2),col=1)
+
+```
+
+Nelson-Aalen estimator
+```{r}
+library("mice") #here is the nelson-aalen estimator function
+
+xfit<-survfit(t~1,conf.type="log-log")
+
+#plot 
+plot(xfit,fun="cumhaz",col=1)
+
+
+
+```
+
+Extracción 
+```{r}
+#-Extraccion de tiempos de fallo y supervivencia-
+tj<-xfit$time #exact time
+sj<-xfit$surv #survivance at tj time
+k<-length(tj)
+sje<-0.5*sj+0.5*c(1,sj[-k]) #correcion por continuidad
+```
+
+
+
+
+Resúmenes
+```{r}
+#Mediana (dentro del comando survfit)
+#Media
+mean(t) #lo da "mal"
+tj2<-c(0,tj[-k])
+sj2<-c(1,sj[-k])
+
+#crude integral (area below curve)
+means<-sum((tj-tj2)*sj2)
+
+#compare
+print(means)
+```
+
+
+Romper media con "trimmed" values 
+```{r}
+trimed = c(6)
+print(xfit,rmean=trimed)
+```
+
+
+
+¿Que pasa si lo comparamos con modelos paramétricos?
+
+Verificaciones
+```{r}
+#-Verificacin de supuesto exponencial-
+plot(tj,log(sje))
+
+#-Verificacin de supuesto weibull-
+plot(log(tj),log(-log(sje)))
+
+#-Verificacin de supuesto lognormal-
+qqnorm(log(tj))
+
+
+```
+
+
+El que mejor se ajusta es el Weibull, pero comparémoslo contra el estimador Kaplan-Meyer
+```{r}
+#-Weibull-
+#Ajuste
+xfitp<-survreg(t~1,dist="weibull")
+summary(xfitp)
+#Prediccion
+xpredp<-predict(xfitp)
+pct<-1:98/100
+xpredp<-predict(xfitp,type="quantile",p=pct,se=TRUE)
+plot(xfit)
+lines(xpredp$fit[1,],1-pct,col=2)
+lines(xpredp$fit[1,]-2*xpredp$se.fit[1,],1-pct,col=3,lty=2)
+lines(xpredp$fit[1,]+2*xpredp$se.fit[1,],1-pct,col=3,lty=2)
+```
+
+Caso log-normal
+```{r}
+#-Lognormal-
+#Ajuste
+xfitp<-survreg(t~1,dist="lognormal")
+summary(xfitp)
+#Prediccion
+xpredp<-predict(xfitp)
+pct <- 1:98/100
+xpredp<-predict(xfitp,type="quantile",p=pct, se=TRUE)
+plot(xfit)
+lines(xpredp$fit[1,],1-pct,col=2)
+lines(xpredp$fit[1,]-2*xpredp$se.fit[1,],1-pct,col=4,lty=2)
+lines(xpredp$fit[1,]+2*xpredp$se.fit[1,],1-pct,col=4,lty=2)
+
+```
+
+
+Caso loglogistico
+```{r}
+#-Loglogistico-
+#Ajuste
+xfitp<-survreg(t~1,dist="loglogistic")
+summary(xfitp)
+#Prediccion
+xpredp<-predict(xfitp)
+pct <- 1:98/100
+xpredp<-predict(xfitp,type="quantile",p=pct,se=TRUE)
+plot(xfit)
+lines(xpredp$fit[1,],1-pct,col=2)
+lines(xpredp$fit[1,]-2*xpredp$se.fit[1,],1-pct,col=5,lty=2)
+lines(xpredp$fit[1,]+2*xpredp$se.fit[1,],1-pct,col=5,lty=2)
+
+```
+
+
+

@@ -1,0 +1,1076 @@
+
+[2~[[A[B[B[A[A[2~#### CURSO DE ANALISIS DE SUPERVIVENCIA ####
+
+#--- Instalar libreria ---
+#-se corre una sola vez-
+install.packages("survival")
+install.packages("KMsurv")
+install.packages("actuar")
+install.packages("BGPhazard")
+install.packages("rmutil")
+
+#--- Carga libreria ---
+#-se corre cada vez que se quiera usar-
+library(survival)
+library(KMsurv)
+library(actuar)
+library(BGPhazard)
+library(rmutil)
+
+#--- Gráficas de funciones de densidad, riesgo y supervivencia ---
+
+#-Geometrico-
+t<-0:15
+p<-0.2
+n<-length(t)
+ft<-dgeom(t,p)
+st<-1-pgeom(t,p)
+ht<-ft
+ht[2:n]<-ft[-1]/st[-n]
+par(mfrow=c(3,1))
+plot(t,ft)
+plot(t,st)
+plot(t,ht)
+
+#-Poisson-
+t<-0:15
+lam<-5
+n<-length(t)
+ft<-dpois(t,lam)
+st<-1-ppois(t,lam)
+ht<-ft
+ht[2:n]<-ft[-1]/st[-n]
+par(mfrow=c(3,1))
+plot(t,ft)
+plot(t,st)
+plot(t,ht)
+
+#-Binomial negativo-
+t<-0:40
+r<-5
+p<-0.2
+n<-length(t)
+ft<-dnbinom(t,r,p)
+st<-1-pnbinom(t,r,p)
+ht<-ft
+ht[2:n]<-ft[-1]/st[-n]
+par(mfrow=c(3,1))
+plot(t,ft)
+plot(t,st)
+plot(t,ht)
+
+#-Exponencial-
+t<-seq(0,12,,100)
+lam<-exp(-2.38)
+n<-length(t)
+ft<-dexp(t,lam)
+st<-1-pexp(t,lam)
+ht<-ft/st
+par(mfrow=c(3,1))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,round(ht,2),type="l")
+
+#-Weibull-
+t<-seq(0,5,,100)
+alpha<-2
+lam<-1
+a<-alpha
+b<-lam^(-1/a)
+n<-length(t)
+ft<-dweibull(t,a,b)
+st<-1-pweibull(t,a,b)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+#-Lognormal-
+t<-seq(0,5,,100)
+mu<--2
+sigma<-2
+n<-length(t)
+ft<-dlnorm(t,mu,sigma)
+st<-1-plnorm(t,mu,sigma)
+ht<-ft/st
+par(mfrow=c(3,1))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+#-Loglogistic-
+t<-seq(0,5,,100)
+alpha<-0.5
+lam<-1
+a<-alpha
+s<-(1/lam)^(1/alpha)
+n<-length(t)
+ft<-dllogis(t,shape=a,scale=s)
+st<-1-pllogis(t,shape=a,scale=s)
+ht<-ft/st
+par(mfrow=c(3,1))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+#-Gamma-
+t<-seq(0,5,,100)
+alpha<-1/2
+lam<-2
+n<-length(t)
+ft<-dgamma(t,alpha,lam)
+st<-1-pgamma(t,alpha,lam)
+ht<-ft/st
+par(mfrow=c(3,1))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+#-Generalized gamma-
+t<-seq(0.01,100,,100)
+alpha<-2
+lam<-1
+beta<-100
+a<-alpha
+s<-beta
+m<-beta/(lam^(1/a))
+n<-length(t)
+ft<-dggamma(t,s,m,a)
+st<-1-pggamma(t,s,m,a)
+ht<-ft/st
+par(mfrow=c(1,3))
+plot(t,ft,type="l")
+plot(t,st,type="l")
+plot(t,ht,type="l")
+
+
+#--- EMV exponencial ---
+#funciones de ver
+#Obs exactas
+lik1<-function(lam,x){
+  n<-length(x)
+  out<-1
+  for (i in 1:n){
+    out<-out*dexp(x[i],lam)
+  }
+  out
+}
+#Obs excatas + censura por derecha
+#(delta=1, exacta; delta=0, censura der.)
+lik2<-function(lam,tt,delta){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    out<-out*(dexp(tt[i],lam)^delta[i])*((1-pexp(tt[i],lam))^(1-delta[i]))
+  }
+  out
+}
+#Obs excatas + censura por derecha e izquierda
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik3<-function(lam,tt,delta){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){
+    if (delta[i]==1) {out<-out*dexp(tt[i],lam)}
+    if (delta[i]==0) {out<-out*(1-pexp(tt[i],lam))}
+    if (delta[i]==2) {out<-out*pexp(tt[i],lam)}
+  }
+  out
+}
+#Obs excatas + cens der e izq + trunc izq 
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik4<-function(lam,tt,delta,u=rep(0,times=length(tt))){
+  n<-length(tt)
+  out<-1
+  for (i in 1:n){ if (is.na(tt[i])==FALSE) {
+    if (delta[i]==1) {out<-out*dexp(tt[i],lam)/(1-pexp(u[i],lam))}
+    if (delta[i]==0) {out<-out*(1-pexp(tt[i],lam))/(1-pexp(u[i],lam))}
+    if (delta[i]==2) {out<-out*(pexp(tt[i],lam)-pexp(u[i],lam))/(1-pexp(u[i],lam))}
+  }
+  }
+  out
+}
+
+#Ejemplo 1 (exactas, censura por der y trunc izq)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-length(delta[delta==0])/n
+print(propc)
+#Truncamiento izquierda
+u<-seq(1,1,length.out=n)
+ttrunc<-ifelse(tt>=u,tt,NA)
+#cbind(x,tt,delta,u,ttrunc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik4(lam,ttrunc,delta,u)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+
+#Ejemplo 2 (efecto de tirar censura a la basura)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-length(delta[delta==0])/n
+print(propc)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik2(lam,tt[delta==1],delta[delta==1])
+length(tt[delta==1])
+y2<-lik2(lam,tt,delta)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+
+#Ejemplo 3 (censura por la der y por la izq, separados)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-length(delta[delta==0])/n
+print(propc)
+#Censura por izquierda
+lamci<-0.5
+ceni<-rexp(n,lamci)
+tti<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+#cbind(x,ceni,tti,delta)
+propci<-length(deltai[deltai==2])/n
+print(propci)
+#cbind(x,cen,tt,delta,ceni,tti,deltai)
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik3(lam,tti,deltai)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+lines(lam,y3/max(y3),col=3,lty=3)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=3,lty=3)
+
+#Ejemplo 4 (doble censura)
+lam0<-1
+n<-50
+x<-rexp(n,lam0)
+#Censura por derecha
+lamc<-0.5
+cen<-rexp(n,lamc)
+#cen<-rep(2,n)
+#Censura por izquierda
+lamci<-2
+ceni<-rexp(n,lamci)
+#ceni<-rep(0.3,n)
+#Doble censura
+tt<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+delta<-deltai
+delta[deltai==1]<-ifelse(tt[deltai==1]<=cen[deltai==1],1,0)
+tt[deltai==1]<-ifelse(x[deltai==1]<=cen[deltai==1],x[deltai==1],cen[deltai==1])
+#cbind(x,cen,ceni,tt,deltai,delta)
+prop.table(table(delta))
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik3(lam,tt,delta)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=2)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=2)
+
+#--- EMV weibull ---
+#Obs excatas + cens der e izq + trunc izq 
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+lik4w<-function(a,b,tt,delta,u=rep(0,times=length(tt))){
+  m<-length(a)
+  outm<-matrix(NA,nrow=m,ncol=m)
+  for (j in 1:m){
+    n<-length(tt)
+    out<-1
+    for (i in 1:n){ if (is.na(tt[i])==FALSE) {
+      if (delta[i]==1) {out<-out*dweibull(tt[i],a,b[j])/(1-pweibull(u[i],a,b[j]))}
+      if (delta[i]==0) {out<-out*(1-pweibull(tt[i],a,b[j]))/(1-pweibull(u[i],a,b[j]))}
+      if (delta[i]==2) {out<-out*(pweibull(tt[i],a,b[j])-pweibull(u[i],a,b[j]))/(1-pweibull(u[i],a,b[j]))}
+    }
+    }
+    out
+    outm[,j]<-out
+  }
+  outm
+}
+#Ejemplos W
+alf0<-2
+lam0<-1
+a0<-alf0
+b0<-lam0^(-1/a0)
+n<-50
+x<-rweibull(n,a0,b0)
+#Censura por derecha
+lamc<-2
+cen<-rexp(n,lamc)
+tt<-ifelse(x<=cen,x,cen)
+delta<-x
+delta<-ifelse(x<=cen,1,0)
+#cbind(x,cen,tt,delta)
+propc<-1-sum(delta)/n
+print(propc)
+#Truncamiento izquierda
+u<-seq(0.5,0.5,length.out=n)
+ttrunc<-ifelse(tt>=u,tt,NA)
+#cbind(x,tt,delta,u,ttrunc)
+#Evaluacion
+m<-100
+a<-seq(0.2,3.8,,m)
+b<-seq(0.2,3.8,,m)
+y1<-lik4w(a,b,x,seq(1,1,,n))
+y2<-lik4w(a,b,tt,delta)
+y3<-lik4w(a,b,ttrunc,delta,u)
+par(mfrow=c(1,1))
+#
+contour(a,b,y1,col=1)
+pos<-which(y1==max(y1),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=1,pch=15)
+print(c(a[pos[1]],b[pos[2]]))
+points(a0,b0,col=4,pch=20)
+#
+contour(a,b,y2,col=2)
+pos<-which(y2==max(y2),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=2,pch=15)
+print(c(a[pos[1]],b[pos[2]]))
+points(a0,b0,col=4,pch=20)
+#
+contour(a,b,y3,col=3)
+pos<-which(y3==max(y3),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=3,pch=15)
+print(c(a[pos[1]],b[pos[2]]))
+points(alf0,lam0,col=4,pch=20)
+
+#EMV con comando survreg
+t<-Surv(tt,delta)
+xfitp<-survreg(t~1,dist="weibull")
+summary(xfitp)
+as<-xfitp$coefficients
+bs<-xfitp$scale
+alf<-1/bs
+lam<-exp(-as/bs)
+a<-alf
+b<-lam^(-1/alf)
+print(c(a,b))
+#
+xfitp<-survreg(t~1,dist="loglogistic")
+summary(xfitp)
+#
+xfitp<-survreg(t~1,dist="lognormal")
+summary(xfitp)
+
+
+#--- Cargar datos ---
+
+#-Datos KM- 
+time<-c(0.8, 1.0, 2.7, 3.1, 5.4, 7.0, 9.2, 12.1)
+delta<-c(1,0,0,1,1,0,1,0)
+km<-data.frame(time=time,delta=delta)
+
+#-Eschmee & Nelson (1977): The number of thousand miles-
+#-at which different locomotive controls failed.-
+time<-c(22.5,37.5,46,48.5,51.5,53,54.5,57.5,66.5,68,
+69.5,76.5,77,78.5,80,81.5,82,83,84,91.5,93.5,102.5,
+107,108.5,112.5,113.5,116,117,118.5,119,120,122.5,123,
+127.5,131,132.5,134,rep(135,59))
+delta<-c(rep(1,37),rep(0,59))
+locomotive<-data.frame(time=time,delta=delta)
+
+#-Freireich et al. (1963): The drug 6-MP was compared-
+#-to placebo with respect to the ability to mantain-
+#-remission in acute leukemia patients.-
+time<-c(6,6,6,6,7,9,10,10,11,13,16,17,19,20,22,23,25,
+        32,32,34,35,1,1,2,2,3,4,4,5,5,8,8,8,8,11,11,12,12,15,
+        17,22,23)
+delta<-c(1,1,1,0,1,0,1,0,0,1,1,0,0,0,1,1,0,0,0,0,0,
+         rep(1,21))
+group<-c(rep(1,21),rep(2,21))
+mp6<-data.frame(time=time,delta=delta,group=group)
+data(drug6mp)
+
+#-Otras bases de datos-
+breakdown<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Breakdown.txt",header=TRUE)
+cancer<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Cancermama.txt",header=TRUE)
+leucemia<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Leucemia.txt",header=TRUE)
+remission<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Remission.txt",header=TRUE)
+bill<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Billete200.txt",header=TRUE)
+
+#-Mas bases de datos-
+#De la libreria survival
+data(leukemia)
+data(bladder)
+data(cgd)
+data(heart)
+data(lung)
+data(mgus)
+data(nwtco)
+data(ovarian)
+data(pbc)
+data(pbcseq)
+data(ratetables)
+data(rats)
+data(stanford2)
+data(tobin)
+data(veteran)
+
+#--- Crear objeto de superviviencia ---
+#Libreria survival
+#Opcion 1
+t<-Surv(km$time,km$delta)
+t1<-Surv(drug6mp$t1,rep(1,length(drug6mp$t1)))
+t2<-Surv(drug6mp$t2,drug6mp$relapse)
+t<-Surv(bill$Vida,bill$Consecutivo/bill$Consecutivo)
+t<-Surv(locomotive$time,locomotive$delta)
+t<-Surv(leucemia$Time,leucemia$delta)
+#Opcion 2
+t<-with(km,Surv(time,delta))
+#Opcion 3
+attach(breakdown)
+t<-Surv(time,delta)
+t<-Surv(Vida,seq(1,1,,length(Vida)))
+
+
+#--- Estimador KM ---
+#Calculo del estimador
+xfit<-survfit(t~1)
+xfit<-survfit(t~1,conf.type="plain")
+xfit<-survfit(t~mp6$group,conf.type="log-log")
+#Presentacion de estimador
+print(xfit)
+summary(xfit)
+#Grafica del estimador
+par(mfrow=c(1,1))
+plot(xfit,conf.int=TRUE)
+plot(xfit,conf.int=TRUE,lty=c(1,2,2),col=1:2)
+plot(xfit,conf.int=TRUE,lty=c(1,2,2),col=1)
+#Informacion que contiene el objeto xfit
+names(xfit)
+
+#-Extraccion de tiempos de fallo y supervivencia-
+tj<-xfit$time
+sj<-xfit$surv
+tj<-xfit$time[xfit$n.event!=0]
+sj<-xfit$surv[xfit$n.event!=0]
+tj<-xfit[group=2]$time[xfit[group=2]$n.event!=0]
+sj<-xfit[group=2]$surv[xfit[group=2]$n.event!=0]
+k<-length(tj)
+sje<-0.5*sj+0.5*c(1,sj[-k])
+
+#-Estimador Nelson-Aalen-
+install.packages("mice")
+library(mice)
+xfit<-survfit(t2~1,conf.type="log-log")
+plot(xfit,fun="cumhaz",col=1)
+xna<-nelsonaalen(drug6mp,t2,relapse)
+points(drug6mp$t2,xna,col=2)
+
+
+#--- Resumenes ---
+#Mediana (dentro del comando survfit)
+#Media
+mean(t)
+mean(time[mp6$group==2])
+tj2<-c(0,tj[-k])
+sj2<-c(1,sj[-k])
+means<-sum((tj-tj2)*sj2)
+print(means)
+print(xfit,rmean=8)
+
+#-Verificacin de supuesto exponencial-
+plot(tj,log(sje))
+
+#-Verificacin de supuesto weibull-
+plot(log(tj),log(-log(sje)))
+
+#-Verificacin de supuesto lognormal-
+qqnorm(log(tj))
+
+#-EMV exponencial drug6mp-
+m<-100
+lam<-seq(0,0.1,,m)
+y1<-lik2(lam,drug6mp$t2,drug6mp$relapse)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+par(mfrow=c(1,1))
+plot(xfit,conf.int=TRUE)
+u<-seq(0,max(drug6mp$t2),,100)
+lines(u,1-pexp(u,lam[pos]),col=2)
+
+
+#--- Estimador Bayesiano ---
+#Caso discreto
+#t1
+xfitB<-BeMRes(drug6mp$t1,rep(1,length(drug6mp$t1)))
+xfitB<-BeMRes(drug6mp$t1,rep(1,length(drug6mp$t1)),c.r=rep(5,22),type.c=2)
+BePloth(xfitB,confint=FALSE)
+BePlotDiag(xfitB,variable="c",pos=4)
+#t2
+xfitB<-BeMRes(drug6mp$t2,drug6mp$relapse)
+xfitB<-BeMRes(drug6mp$t2,drug6mp$relapse,c.r=rep(100,34),type.c=2)
+BePloth(xfitB,confint=TRUE)
+BePlotDiag(xfitB,variable="c",pos=4)
+
+#Caso continuo
+#t1
+xfitB<-GaMRes(drug6mp$t1,rep(1,length(drug6mp$t1)),iterations=2000)
+GaPloth(xfitB,confint=TRUE)
+GaPlotDiag(xfitB,variable="c",pos=4)
+#t2
+xfitB<-GaMRes(drug6mp$t2,drug6mp$relapse,iterations=2000)
+xfitB<-GaMRes(drug6mp$t2,drug6mp$relapse,iterations=2000,type.t=2)
+GaPloth(xfitB,confint=TRUE)
+BePlotDiag(xfitB,variable="c",pos=4)
+
+#t
+xfitB<-GaMRes(bill$Vida,bill$Consecutivo/bill$Consecutivo,iterations=2000)
+GaPloth(xfitB,confint=TRUE)
+GaPlotDiag(xfitB,variable="c",pos=4)
+
+
+#--- Estimador parametrico ---
+#-Weibull-
+#Ajuste
+xfitp<-survreg(t~1,dist="weibull")
+summary(xfitp)
+#Prediccion
+xpredp<-predict(xfitp)
+pct<-1:98/100
+xpredp<-predict(xfitp,type="quantile",p=pct,se=TRUE)
+plot(xfit)
+lines(xpredp$fit[1,],1-pct,col=3)
+lines(xpredp$fit[1,]-2*xpredp$se.fit[1,],1-pct,col=3,lty=2)
+lines(xpredp$fit[1,]+2*xpredp$se.fit[1,],1-pct,col=3,lty=2)
+
+#-Lognormal-
+#Ajuste
+xfitp<-survreg(t~1,dist="lognormal")
+summary(xfitp)
+#Prediccion
+xpredp<-predict(xfitp)
+pct <- 1:98/100
+xpredp<-predict(xfitp,type="quantile",p=pct, se=TRUE)
+plot(xfit)
+lines(xpredp$fit[1,],1-pct,col=2)
+lines(xpredp$fit[1,]-2*xpredp$se.fit[1,],1-pct,col=2,lty=2)
+lines(xpredp$fit[1,]+2*xpredp$se.fit[1,],1-pct,col=2,lty=2)
+
+#-Loglogistico-
+#Ajuste
+xfitp<-survreg(t~1,dist="loglogistic")
+summary(xfitp)
+#Prediccion
+xpredp<-predict(xfitp)
+pct <- 1:98/100
+xpredp<-predict(xfitp,type="quantile",p=pct,se=TRUE)
+plot(xfit)
+lines(xpredp$fit[1,],1-pct,col=2)
+lines(xpredp$fit[1,]-2*xpredp$se.fit[1,],1-pct,col=2,lty=2)
+lines(xpredp$fit[1,]+2*xpredp$se.fit[1,],1-pct,col=2,lty=2)
+
+
+#--- MODELOS DE REGRESION ---
+
+#-Modelo de vida acelerada-
+#Weibull
+hw<-function(t,x,alpha,lam,theta){
+  out<-exp(alpha*sum(x*theta))*lam*alpha*t^(alpha-1)
+  out
+}
+#Loglogistico
+hll<-function(t,x,alpha,lam,theta){
+  out<-exp(alpha*sum(x*theta))*lam*alpha*t^(alpha-1)
+  out<-out/(1+lam*exp(alpha*sum(x*theta))*t^alpha)
+  out
+}
+sll<-function(t,x,alpha,lam,theta){
+  out<-1/(1+lam*exp(alpha*sum(x*theta))*t^alpha)
+  out
+}
+#Lognormal
+sln<-function(t,x,mu0,b,theta){
+  out<-1-pnorm((log(t)-mu0+sum(x*theta))/b)
+  out
+}
+#Corridas
+#Weibull
+t<-seq(0.01,10,,100)
+alpha<-rgamma(1,1,1)
+lam<-rgamma(1,1,1)
+theta<-rnorm(2,0,1)
+x1<-runif(2,-1,1)
+y1<-hw(t,x1,alpha,lam,theta)
+x2<-runif(2,-1,1)
+y2<-hw(t,x2,alpha,lam,theta)
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+par(mfrow=c(1,2))
+plot(t,y1,type="l",ylim=c(ymin,ymax))
+lines(t,y2,lty=2,col=2)
+plot(t,y2/y1,type="l")
+#Log-logistico
+t<-seq(0.01,30,,100)
+alpha<-rgamma(1,1,1)
+lam<-rgamma(1,1,1)
+theta<-rnorm(2,0,1)
+x1<-runif(2,-1,1)
+y1<-hll(t,x1,alpha,lam,theta)
+s1<-sll(t,x1,alpha,lam,theta)
+x2<-runif(2,-1,1)
+y2<-hll(t,x2,alpha,lam,theta)
+s2<-sll(t,x2,alpha,lam,theta)
+par(mfrow=c(2,2))
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+plot(t,y1,type="l",ylim=c(ymin,ymax))
+lines(t,y2,lty=2,col=2)
+smin<-min(s1,s2)
+smax<-max(s1,s2)
+plot(t,s1,type="l",ylim=c(smin,smax))
+lines(t,s2,lty=2,col=2)
+plot(t,y2/y1,type="l")
+#Lognormal
+t<-seq(0.01,10,,100)
+alpha<-rgamma(1,1,1)
+b<-1/alpha
+lam<-rgamma(1,1,1)
+mu0<-(-log(lam))*b
+theta<-rnorm(2,0,1)
+x1<-runif(2,-1,1)
+y1<-sln(t,x1,mu0,b,theta)
+x2<-runif(2,-1,1)
+y2<-sln(t,x2,mu0,b,theta)
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+par(mfrow=c(1,1))
+plot(t,y1,type="l",ylim=c(ymin,ymax))
+lines(t,y2,lty=2,col=2)
+#plot(t,y2/y1,type="l")
+
+
+#--- Ejemplos de las NOTAS ---
+
+#--- Ejemplo: Tiempos de supervivencia de leucemia ---
+#-Comparar ajustes de modelos Weibull, Loglogístico y Lognormal-
+attach(leucemia)
+#-Gráficas de diagnóstico
+par(mfrow=c(1,1))
+plot(wbc,Time)
+plot(log(wbc),Time)
+boxplot(Time~AG)
+#Ajuste del modelo
+xfitr<-survreg(Surv(Time,delta)~log(wbc)+AG,data=leucemia,dist="weibull")
+summary(xfitr)
+#Predicciones1
+pred<-predict(xfitr,type="response")
+plot(Time,pred,type="n")
+lines(Time,Time,col=2)
+text(Time,pred,labels=delta)
+#Predicciones2
+pred<-predict(xfitr,newdata=list(wbc=1:100,AG=rep(0,100)),type="quantile",p=c(.1, .5, .9))
+matplot(1:100,pred,type="l",lty=c(2,1,2),col=c(1,1,1))
+pred<-predict(xfitr,newdata=list(wbc=1:100,AG=rep(1,100)),type="quantile",p=c(.1, .5, .9))
+matlines(1:100,pred,lty=c(2,1,2),col=c(2,2,2))
+#Detach dataset
+detach(leucemia)
+
+#--- Ejemplo: Falla de fluido de aislamiento ---
+#-Comparar ajustes de modelos Weibull, Loglogístico y Lognormal-
+attach(breakdown)
+#-Gráficas de diagnóstico
+t<-Surv(BreakTimes,seq(1,1,,length(BreakTimes)))
+xfit<-survfit(t~VoltageLev)
+n<-c(0,cumsum(xfit$n))
+for (l in 1:7){
+  tj<-xfit$time[(n[l]+1):n[l+1]]
+  sj<-xfit$surv[(n[l]+1):n[l+1]]
+  k<-length(tj)
+  sje<-0.5*sj+0.5*c(1,sj[-k])
+  plot(log(tj),log(-log(sje)),main=paste("VoltageLev=",l))
+}
+#Ajuste del modelo
+xfitr<-survreg(t~VoltageLev,data=breakdown,dist="weibull")
+summary(xfitr)
+#Predicciones1
+pred<-predict(xfitr,type="response")
+plot(BreakTimes,pred)
+lines(BreakTimes,BreakTimes,col=2)
+#Predicciones2
+pct<-1:98/100
+vl<-as.numeric(names(table(VoltageLev)))
+pred<-predict(xfitr,newdata=list(VoltageLev=vl),type="quantile",p=pct)
+plot(xfit,col=1:7,lty=2)
+matlines(t(pred),1-pct,col=1:7,lty=1)
+#Predicciones3
+pct<-1:98/100
+vl<-20
+pred<-predict(xfitr,newdata=list(VoltageLev=vl),type="quantile",p=pct)
+lines(t(pred),1-pct,col=8,lty=1)
+#Detach dataset
+detach(breakdown)
+
+
+#-Modelo de riesgos proporcionales-
+#Weibull
+hw<-function(t,x,alpha,lam,theta){
+  out<-exp(sum(x*theta))*lam*alpha*t^(alpha-1)
+  out
+}
+#Loglogistico
+hll<-function(t,x,alpha,lam,theta){
+  out<-exp(sum(x*theta))*lam*alpha*t^(alpha-1)
+  out<-out/(1+lam*t^alpha)
+  out
+}
+sll<-function(t,x,alpha,lam,theta){
+  out<-1/(1+lam*t^alpha)^exp(sum(x*theta))
+  out
+}
+#Lognormal
+sln<-function(t,x,mu0,b,theta){
+  out<-(1-pnorm((log(t)-mu0)/b))^exp(sum(x*theta))
+  out
+}
+#Corridas
+#Weibull
+t<-seq(0.01,10,,100)
+alpha<-rgamma(1,1,1)
+lam<-rgamma(1,1,1)
+theta<-rnorm(2,0,1)
+x1<-runif(2,-1,1)
+y1<-hw(t,x1,alpha,lam,theta)
+x2<-runif(2,-1,1)
+y2<-hw(t,x2,alpha,lam,theta)
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+par(mfrow=c(1,2))
+plot(t,y1,type="l",ylim=c(ymin,ymax))
+lines(t,y2,lty=2,col=2)
+plot(t,y2/y1,type="l")
+#Log-logistico
+t<-seq(0.01,30,,100)
+alpha<-rgamma(1,1,1)
+lam<-rgamma(1,1,1)
+theta<-rnorm(2,0,1)
+x1<-runif(2,-1,1)
+y1<-hll(t,x1,alpha,lam,theta)
+s1<-sll(t,x1,alpha,lam,theta)
+x2<-runif(2,-1,1)
+y2<-hll(t,x2,alpha,lam,theta)
+s2<-sll(t,x2,alpha,lam,theta)
+par(mfrow=c(2,2))
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+plot(t,y1,type="l",ylim=c(ymin,ymax))
+lines(t,y2,lty=2,col=2)
+smin<-min(s1,s2)
+smax<-max(s1,s2)
+plot(t,s1,type="l",ylim=c(smin,smax))
+lines(t,s2,lty=2,col=2)
+plot(t,y2/y1,type="l")
+#Lognormal
+t<-seq(0.01,10,,100)
+alpha<-rgamma(1,1,1)
+b<-1/alpha
+lam<-rgamma(1,1,1)
+mu0<-(-log(lam))*b
+theta<-rnorm(2,0,1)
+x1<-runif(2,-1,1)
+y1<-sln(t,x1,mu0,b,theta)
+x2<-runif(2,-1,1)
+y2<-sln(t,x2,mu0,b,theta)
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+par(mfrow=c(1,1))
+plot(t,y1,type="l",ylim=c(ymin,ymax))
+lines(t,y2,lty=2,col=2)
+#plot(t,y2/y1,type="l")
+
+
+#--- Ejemplo: Tiempos de remisión ---
+attach(remission)
+#Estimador Kaplan-Meier
+t<-Surv(Time,delta)
+xfit<-survfit(t~treatment)
+plot(xfit,col=1:2)
+plot(xfit,conf.int=TRUE,col=1:2)
+#Ajuste del modelo
+xfitc<-coxph(t~treatment,data=remission)
+summary(xfitc)
+#Predicciones
+pred<-predict(xfitc,type="lp")
+pred<-predict(xfitc,type="risk",se.fit=TRUE)
+par(mfrow=c(1,1))
+plot(survfit(xfitc,newdata=data.frame(treatment=0),conf.type="none"))
+lines(survfit(xfitc,newdata=data.frame(treatment=1)),col=2)
+#Detach
+detach(remission)
+
+
+#--- Ejemplo: pacientes con cancer de mama ---
+attach(cancer)
+#Estimador Kaplan-Meier
+t<-Surv(Times,delta)
+xfit<-survfit(t~group)
+plot(xfit,col=1:2)
+plot(xfit,conf.int=TRUE,col=1:2)
+#Ajuste del modelo
+xfitc<-coxph(t~group,data=cancer)
+summary(xfitc)
+#Predicciones
+pred<-predict(xfitc,type="lp")
+pred<-predict(xfitc,type="risk",se.fit=TRUE)
+par(mfrow=c(1,1))
+plot(survfit(xfitc,newdata=data.frame(group=0),conf.type="none"))
+lines(survfit(xfitc,newdata=data.frame(group=1)),col=2)
+#Detach
+detach(cancer)
+
+
+#--- Otros ejemplos ---
+
+#--- Modelo de vida acelerada (paramétrico) ---
+#-Weibull-
+data(ovarian)
+attach(ovarian)
+#Ajuste del modelo
+xfitr<-survreg(Surv(futime, fustat) ~ ecog.ps + rx, ovarian, dist="weibull")
+summary(xfitr)
+#Predicciones
+pred<-predict(xfitr,type="response")
+plot(futime,pred,type="n")
+text(futime,pred,labels=fustat)
+#Análisis de residuos
+e<-residuals(xfitr)
+par(mfrow=c(2,1))
+plot(e)
+boxplot(e,horizontal=TRUE)
+par(mfrow=c(2,2))
+plot(e,ecog.ps)
+plot(e,rx)
+plot(e,futime,type="n")
+text(e,futime,labels=fustat)
+#Detach dataset
+detach(ovarian)
+
+#-Lognormal-
+data(stanford2)
+attach(stanford2)
+#Grafica de dispersi?n
+plot(age, time, xlab="Age", ylab="Days",xlim=c(0,65),ylim=c(.01, 10^6),log="y")
+#Ajuste del modelo
+xfitr <- survreg(Surv(time,status) ~ age + age^2, data=stanford2, dist="lognormal")
+summary(xfitr)
+#Predicciones
+plot(age, time, xlab="Age", ylab="Days",xlim=c(0,65), ylim=c(.01, 10^6),log="y")
+pred<-predict(xfitr,newdata=list(age=1:65),type="quantile",p=c(.1, .5, .9))
+matlines(1:65, pred, lty=c(2,1,2), col=2)
+#Análisis de residuos
+e<-residuals(xfitr)
+par(mfrow=c(2,1))
+plot(e)
+boxplot(e,horizontal=TRUE)
+par(mfrow=c(2,2))
+plot(e,age)
+plot(e,age^2)
+plot(e,time,type="n")
+text(e,time,labels=status)
+#Detach dataset
+detach(stanford2)
+
+#--- Modelo de riesgos proporcionales (semi-paramétrico) ---
+#-Ejemplo 1-
+data(lung)
+attach(lung)
+#Gráfica de dispersión
+par(mfrow=c(2,1))
+plot(age,time)
+plot(ph.ecog,time)
+#Ajuste del modelo
+xfitc<-coxph(Surv(time, status) ~ ph.ecog + age, data=lung)
+summary(xfitc)
+#Predicciones
+pred<-predict(xfitc,type="lp")
+pred<-predict(xfitc,type="risk",se.fit=TRUE)
+par(mfrow=c(1,1))
+plot(survfit(xfitc,newdata=data.frame(ph.ecog=0,age=62),conf.type="none"))
+lines(survfit(xfitc,newdata=data.frame(ph.ecog=1,age=62)),col=2)
+lines(survfit(xfitc,newdata=data.frame(ph.ecog=2,age=62)),col=3)
+lines(survfit(xfitc,newdata=data.frame(ph.ecog=3,age=62)),col=4)
+#Detach
+detach(lung)
+
+#-Ejemplo 2-
+data(ovarian)
+attach(ovarian)
+#Gráfica de dispersión
+par(mfrow=c(2,1))
+plot(age,futime,type="n")
+text(age,futime,labels=fustat)
+plot(survfit(Surv(futime,fustat)~ecog.ps),col=1:2)
+#Ajuste del modelo
+xfitc<-coxph(Surv(futime, fustat) ~ age, data = ovarian)
+summary(xfitc)
+#Predicciones
+plot(survfit(xfitc, newdata=data.frame(age=60)),xscale=365.25, xlab = "Years", ylab="Survival")
+plot(survfit(xfitc, newdata=data.frame(age=60)),xlab = "Days", ylab="Survival")
+#Detach
+detach(ovarian)
+
+
+#--- Comparación de curvas ---
+#Comparación de 2 muestras
+survdiff(Surv(futime, fustat) ~ rx,data=ovarian)
+
+#Comparación de 7 estratos 
+survdiff(Surv(time, status) ~ pat.karno + strata(inst), data=lung)
+
+#Comparación de 7 niveles de estres 
+survdiff(Surv(BreakTimes,seq(1,1,,length(BreakTimes)))~VoltageLev,data=breakdown)
+
+
+#----------- Datos: BANCO DE MEXICO -----------------
+
+#--- Ejemplo: Tiempode vide de billetes ---
+bill2<-read.csv("c://lnieto/Diplomado/BancoMex/Supervivencia/Notas/duracion_billete_200.csv",header=TRUE)
+attach(bill2)
+recodef<-function(x){
+  if(x=="corresponsal"){resp<-0}
+  else{resp<-1}
+}
+plaza<-sapply(plaza_deposito,recodef)
+falla<-falla_mecanica
+#-Estimadores KM
+#Censura por la derecha solamente
+t<-Surv(meses_duracion,deteriorado)
+xfit<-survfit(t~1)
+plot(xfit)
+xfit<-survfit(t~plaza)
+plot(xfit,col=1:2)
+xfit<-survfit(t~falla)
+plot(xfit,col=1:2)
+xfit<-survfit(t~plaza+falla)
+plot(xfit,col=1:4)
+#Ajuste del modelo vida acelerada
+xfitr<-survreg(t~plaza+falla,dist="weibull")
+summary(xfitr)
+xfitr<-survreg(t~plaza+falla,dist="loglogistic")
+summary(xfitr)
+xfitr<-survreg(t~plaza+falla,dist="lognormal")
+summary(xfitr)
+#Predicciones con modelo de vida acelerada
+pct<-1:98/100
+pred<-predict(xfitr,newdata=list(plaza=c(0,0,1,1),falla=c(0,1,0,1)),type="quantile",p=pct)
+plot(xfit,col=1:4,lty=2,mark.time=FALSE)
+matlines(t(pred),1-pct,col=1:4,lty=1)
+#Ajuste del modelo riesgos proporcionales
+xfitc<-coxph(t~plaza+falla)
+summary(xfitc)
+#Predicciones con modelo de riesgos proporcionales
+par(mfrow=c(1,1))
+plot(survfit(xfitc,newdata=data.frame(plaza=c(0,0,1,1),falla=c(0,1,0,1)),conf.type="none"),col=1:4)
+#Detach dataset
+detach(bill2)
+
+#Comparación no paramétrica de curvas
+survdiff(Surv(meses_duracion,deteriorado)~plaza+falla,data=bill2)
+
+
+#---Microarreglos (aCGH)---
+source("https://bioconductor.org/biocLite.R")
+biocLite("fastseg")
+source("https://bioconductor.org/biocLite.R")
+biocLite("DNAcopy")
+
+library(fastseg)
+library(DNAcopy)
+
+data(coriell)
+table(coriell$Chromosome)
+for (i in 1:23){
+  x<-coriell[coriell$Chromosome==i,3]
+  y<-coriell[coriell$Chromosome==i,4]
+  plot(x,y,main=paste("Chromosome",i))
+}
+for (i in 1:23){
+  x<-coriell[coriell$Chromosome==i,3]
+  y<-coriell[coriell$Chromosome==i,5]
+  plot(x,y,main=paste("Chromosome",i))
+}
+
+CNA.object <- CNA(cbind(coriell$Coriell.05296,coriell$Coriell.13330),
+                  coriell$Chromosome,coriell$Position,
+                  data.type="logratio",sampleid=c("c05296","c13330"))
+#We generally recommend smoothing single point outliers before analysis
+#Make sure to check that the smoothing is proper
+smoothed.CNA.object <- smooth.CNA(CNA.object)
+#Segmentation at default parameters
+segment.smoothed.CNA.object <- segment(smoothed.CNA.object, verbose=1)
+segment.smoothed.CNA.object <- segment(smoothed.CNA.object,alpha=0.001)
+#Plot whole studies
+plot(segment.smoothed.CNA.object, plot.type="w")
+#Plot each study by chromosome
+plot(segment.smoothed.CNA.object, plot.type="s")
+#Plot each chromosome across studies (6 per page)
+plot(segment.smoothed.CNA.object, plot.type="c", cbys.layout=c(2,1), cbys.nchrom=6)
+#Plot by plateaus
+plot(segment.smoothed.CNA.object, plot.type="p")
+
