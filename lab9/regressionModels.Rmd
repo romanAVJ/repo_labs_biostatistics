@@ -1,0 +1,202 @@
+---
+title: "Modelos de regresión"
+output: html_notebook
+---
+
+# Vida acelerada
+
+Sabemos que los modelos de vida acelerada están dados por el siguiente modelo:
+
+$$T_{i} = \frac{T_0}{\varphi(X,\theta)}.$$
+
+Funciones de riego para modelos Weibull, LogLogigistico como también funciones de supervivencia.
+
+- Weibull:
+$$ $$
+
+```{r}
+#--- MODELOS DE REGRESION ---
+
+#-Modelo de vida acelerada-
+#Weibull
+hw<-function(t,x,alpha,lam,theta){
+  out<-exp(alpha*sum(x*theta))*lam*alpha*t^(alpha-1)
+  out
+}
+#Loglogistico
+hll<-function(t,x,alpha,lam,theta){
+  out<-exp(alpha*sum(x*theta))*lam*alpha*t^(alpha-1)
+  out<-out/(1+lam*exp(alpha*sum(x*theta))*t^alpha)
+  out
+}
+sll<-function(t,x,alpha,lam,theta){
+  out<-1/(1+lam*exp(alpha*sum(x*theta))*t^alpha)
+  out
+}
+#Lognormal
+sln<-function(t,x,mu0,b,theta){
+  out<-1-pnorm((log(t)-mu0+sum(x*theta))/b)
+  out
+}
+```
+
+## Modelo Weibull
+
+Mostremos el modelo de vida acelerada para el caso que $X = (X_1, X_2)$ con $X_i \sim \mathcal{Unif}(0,1)$. 
+
+__NOTA:__ 
+
+- La primer gráfica nos muestra cómo crecen los riesgos. El individo base (x0) es la gráfica negra, el uno y el dos son el rojo y el verde, respectivamente. 
+- La segunda gráfica nos muestra que el cociente de los riesgos es constante. _Es importante_ que se sepa que solo passa esto para los modelos Weibull.
+
+
+```{r}
+# we set the seed
+set.seed(18)
+
+#simulation
+#we set the parameters
+t<-seq(0.01,10,,100)
+alpha<-rgamma(1,1,1)
+lam<-rgamma(1,1,1)
+theta<-rnorm(2,0,1)
+
+#we set the covariables and the survival functions 
+#covs
+x0 <- c(0,0)
+x1<-runif(2,-1,1)
+x2<-runif(2,-1,1)
+# hazard 
+y0 <- hw(t,x0,alpha,lam,theta) #base individual
+y1<-hw(t,x1,alpha,lam,theta)
+y2<-hw(t,x2,alpha,lam,theta)
+
+#plot
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+par(mfrow=c(1,2))
+plot(t,y0,type="l",ylim=c(ymin,ymax), ylab = 'h(t)')
+lines(t,y1,lty=1,col=2)
+lines(t,y2,lty=1,col=3)
+
+plot(t,y2/y1,type="l", ylab = 'h1(t)/h2(t)')
+
+
+```
+
+## Modelo Log-logístico
+
+- El _individuo base_ es el de color negro.
+
+Obsevamos que el cociente de riesgos entre el indviduo 1 y el individuo 2 es creciente pero se queda asintóticamente en 1, pues conforme pasa el tiempo, tienen el "mismo" riesgo.
+
+```{r}
+#seed
+set.seed(18)
+
+#simulation of parameters
+t<-seq(0.01,30,,100)
+alpha<-rgamma(1,1,1)
+lam<-rgamma(1,1,1)
+theta<-rnorm(2,0,1)
+
+#simulation of covariables and then their hazard rates
+#individual 0
+x0 <- c(0,0)
+y0<-hll(t,x0,alpha,lam,theta)
+s0<-sll(t,x0,alpha,lam,theta)
+
+#individual 1
+x1<-runif(2,-1,1)
+y1<-hll(t,x1,alpha,lam,theta)
+s1<-sll(t,x1,alpha,lam,theta)
+
+#individual 2
+x2<-runif(2,-1,1)
+y2<-hll(t,x2,alpha,lam,theta)
+s2<-sll(t,x2,alpha,lam,theta)
+
+#plot
+par(mfrow=c(1,3))
+#p1
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+plot(t,y0,type="l",ylim=c(ymin,ymax))
+lines(t,y1,lty=1,col=2)
+lines(t,y2,lty=1,col=3)
+smin<-min(s1,s2)
+smax<-max(s1,s2)
+#p2
+plot(t,s0,type="l",ylim=c(smin,smax))
+lines(t,s1,lty=1,col=2)
+lines(t,s2,lty=1,col=3)
+#p3
+plot(t,y2/y1,type="l")
+
+
+
+```
+
+## Log-normal
+
+```{r}
+#seed
+set.seed(42)
+
+#sim parameters
+t<-seq(0.01,10,,100)
+alpha<-rgamma(1,1,1)
+b<-1/alpha
+lam<-rgamma(1,1,1)
+mu0<-(-log(lam))*b
+theta<-rnorm(2,0,1)
+
+#simulatoin of covariables and hazard rates
+#base individual
+x0<-c(0,0)
+y0<-sln(t,x0,mu0,b,theta)
+#ind 1
+x1<-runif(2,-1,1)
+y1<-sln(t,x1,mu0,b,theta)
+#ind 2
+x2<-runif(2,-1,1)
+y2<-sln(t,x2,mu0,b,theta)
+ymin<-min(y1,y2)
+ymax<-max(y1,y2)
+
+#plot
+par(mfrow=c(1,1))
+plot(t,y0,type="l",ylim=c(ymin,ymax))
+lines(t,y1,lty=1,col=2)
+lines(t,y2,lty=1,col=3)
+
+
+
+```
+
+
+# Modelos de regresión 
+
+## Ejemplo con tiempos de supervivencia de leucemia
+```{r}
+#--- Ejemplo: Tiempos de supervivencia de leucemia ---
+#-Comparar ajustes de modelos Weibull, Loglogístico y Lognormal-
+attach(leucemia)
+#-Gráficas de diagnóstico
+par(mfrow=c(1,1))
+plot(wbc,Time)
+plot(log(wbc),Time)
+boxplot(Time~AG)
+#Ajuste del modelo
+xfitr<-survreg(Surv(Time,delta)~log(wbc)+AG,data=leucemia,dist="weibull")
+summary(xfitr)
+#Predicciones1
+pred<-predict(xfitr,type="response")
+plot(Time,pred,type="n")
+lines(Time,Time,col=2)
+text(Time,pred,labels=delta)
+```
+
+
+
+
