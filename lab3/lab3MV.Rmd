@@ -1,5 +1,5 @@
 ---
-title: "R Notebook"
+title: "Verosimilitud"
 output: html_notebook
 ---
 
@@ -7,8 +7,21 @@ output: html_notebook
 
 ## Caso: $X \sim exp(\lambda)$
 
+Definimos las siguientes funciones de verosimilitud:
+
+- Observaciones exactas: $L = \prod_{j} f_{X}(x_{j})$
+- Observaciones exactas y censuradas por derecha (la más común): $L = \prod_{j \in D} f_{X}(x_{j}) \prod_{j \in R}S_{X}(x_{j}).$
+- Observaciones exactas y censuradas por derecha e izquierda:  $L = \prod_{j \in D} f_{X}(x_{j}) \prod_{j \in R}S_{X}(x_{j}) \prod_{j \in L}F_{X}(x_{j}).$
+- Obervaciones exactas y censuradas por derecha e  izquierda pero también truncadas por la izq:  $L = \prod_{j \in D} f_{X}(x_{j}) \prod_{j \in R}S_{X}(x_{j}) \prod_{j \in L}F_{X}(x_{j}) \prod_{j \in T_{lD}}\frac{f_X(x_{j})}{S_{X}(u_{j})}  \prod_{j \in T_{lR}}\frac{S_X(x_{j})}{S_{X}(u_{j})}  \prod_{j \in T_{lL}}\frac{F_X(x_{j})}{F_{X}(u_{j})}.$
+
+Donde $u_{j}$ es el tiempo de truncamiento por la derecha, i.e. $u_{j} \leq t_{i} \quad \forall i$.
+
+
+Las verosimilitudes se harán simulando una funcion exponencial.
 ```{r EMV exponencial funciones}
-#funciones de ver
+
+#funciones de verosimilitud
+
 #Obs exactas
 lik1<-function(lam,tt){
   n<-length(tt)
@@ -43,6 +56,7 @@ lik3<-function(lam,tt,delta){
 }
 #Obs excatas + cens der e izq + trunc izq 
 #(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+#(u = 0, NO hay truncamiento, u != 0, truncamiento)
 lik4<-function(lam,tt,delta,u=rep(0,times=length(tt))){
   n<-length(tt)
   out<-1
@@ -60,36 +74,56 @@ lik4<-function(lam,tt,delta,u=rep(0,times=length(tt))){
 
 # Ejemplos
 
-```{r ejemplo1}
-set.seed(41) #jugar con la semilla
+```{r ejemploSimulacion}
+#seed
+set.seed(42)
+
 #Ex1
-lam0<-2
-n<-50 #number of simulations
+lam0<-1.5
+n<-100 #number of simulations
 x<-rexp(n,lam0) #sim
 
-#Censura por derecha
-lamc<-2
+#Censura por derecha (aleatoria)
+lamc<-1.5 #(no necesariamente tiene que ser la misma lambda de censura)
 cen<-rexp(n,lamc)
 tt<-ifelse(x<=cen,x,cen)
 delta<-x
 delta<-ifelse(x<=cen,1,0)
-#cbind(x,cen,tt,delta)
-propc<-1-sum(delta)/n
-print(propc) #rate of censore
+propc<-1-sum(delta)/n #rate of censoring
+
+#Censura por izquierda
+lamci<-0.5 #no tiene que ser misma lambda 
+ceni<-rexp (n,lamci)
+tti<-ifelse(x>=ceni,x,ceni)
+deltai<-x
+deltai<-ifelse(x>=ceni,1,2)
+
 #Truncamiento izquierda
 u<-seq(0.5,0.5,length.out=n)
 ttrunc<-ifelse(tt>=u,tt,NA)
-#cbind(x,tt,delta,u,ttrunc)
+
+
+
+```
+
+Vamos a ver como con distintas lambdas la verosimilitud va cambiando y veremos donde es donde la "lambda" está y se comparará con el verdadero valor de $\lambda_{0}$.
+```{r ejemploSimulacionEva}
 #Evaluacion
 m<-100
-lam<-seq(0,5,,m)
-y1<-lik1(lam,x)
-y2<-lik2(lam,tt,delta)
-y3<-lik4(lam,ttrunc,delta,u)
+lam<-seq(0,4,,m) #distintas lambdas
+
+#likelihood 
+y1<-lik1(lam,x) #exact observations
+y2<-lik2(lam,tt,delta) #exact and right censored
+y3<-lik4(lam,ttrunc,delta,u) #truncated by left
+
+#print
 par(mfrow=c(1,1))
+#ikelihoods
 plot(lam,y1/max(y1),type="l")
 lines(lam,y2/max(y2),col=2,lty=2)
 lines(lam,y3/max(y3),col=3,lty=3)
+#real lambda
 abline(v=lam0,col=4)
 pos<-order(y1)[m]
 abline(v=lam[pos],col=1,lty=1)
@@ -102,153 +136,237 @@ abline(v=lam[pos],col=3,lty=1)
 __NOTA__:
 
 - Entre mayor sea la censura, la verosimilitud (roja), será mucho más ancha.
-- Notar también que en medida que aumente el tamaño de muestra, la incertidumbre decrece.
+- Notar también que en medida que aumente el tamaño de muestra, la incertidumbre decrece. (modificar n al simular.)
+- El truncamiento por derecha subestima el verdadero valor de lambda.
+- La censura por derecha igualmente subestima el valor de lambda.
+
+## Ejemplo 2: Efecto de deshechar la censura
+
+Censura será el color 
+
+```{r ejemplo2}
+#Evaluacion
+lam<-seq(0,4,,m)
+
+#likelihood with and without censoring
+y1<-lik2(lam,tt[delta==1],delta[delta==1]) #without censoring
+y2<-lik2(lam,tt,delta) #with censoring
+
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l", col = 6)
+lines(lam,y2/max(y2),col=2,lty=1)
+
+abline(v=lam0,col=4) #true value of lambda
+
+pos<-order(y1)[m]
+abline(v=lam[pos],col=6,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=1)
+```
+
+__NOTA__:
+
+- Si el tamaño de muestra es muy grande, quitar o no la censura en escencia no afecta (ley de los grandes números).
+- Quitar censura en este caso sobrestima el modelo, además aumenta la variabilidad de la estimación (ver grueso de la campana).
+
+## Ejemplo 3:
+
+Verosimilitud para datos exactos, otra para censurados por derecha y otra para censurados por izquierda (cyan)
+```{r ejemplo3}
 
 
-__NOTA2__:
+#cbind(x,cen,tt,delta,ceni,tti,deltai)
+#Evaluacion
+lam<-seq(0,4,,m)
+y1<-lik1(lam,x)
+y2<-lik2(lam,tt,delta)
+y3<-lik3(lam,tti,deltai)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col=2,lty=1)
+lines(lam,y3/max(y3),col=5,lty=1)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col=2,lty=1)
+pos<-order(y3)[m]
+abline(v=lam[pos],col=5,lty=1)
+```
 
-- 
+## Ejemplo: Doble censura
 
-
-#Ejemplos
-lam0<-1
+$$\delta = \begin{cases} \ {0 } \quad ; \quad \text{censura izquierda,} \\
+{1}  \quad ; \quad \text{observación exacta,} \\
+{2} \quad ; \quad \text{censura por derecha.}
+\end{cases}$$
+```{r ejemplos4}
+set.seed(42)
+# new simulation
+#Ejemplo 4 (doble censura)
+lam0<-2
 n<-50
 x<-rexp(n,lam0)
 #Censura por derecha
+lamc<-0.5
+cen<-rexp(n,lamc)
+#Censura por izquierda
+lamci<-3
+ceni<-rexp(n,lamci)
+#Doble censura
+tt<-ifelse(x>=ceni,x,ceni) #censura por derecha (T > C)
+deltai<-ifelse(x>=ceni,1,2) 
+delta<-deltai
+delta[deltai==1]<-ifelse(tt[deltai==1]<=cen[deltai==1],1,0)
+tt[deltai==1]<-ifelse(x[deltai==1]<=cen[deltai==1],x[deltai==1],cen[deltai==1]) #poner la censura por izq
+
+#tabla de censura
+# prop.table(table(delta))
+
+
+#Evaluacion
+m<-100
+lam<-seq(0,5,,m)
+y1<-lik1(lam,x)
+y2<-lik3(lam,tt,delta)
+par(mfrow=c(1,1))
+plot(lam,y1/max(y1),type="l")
+lines(lam,y2/max(y2),col = 'orange',lty=1)
+abline(v=lam0,col=4)
+pos<-order(y1)[m]
+abline(v=lam[pos],col=1,lty=1)
+pos<-order(y2)[m]
+abline(v=lam[pos],col='orange',lty=1)
+```
+__NOTA__:
+
+- Curiosamente la doble censura aproxima mejor el verdadero valor. No obstante incrementa por mucho la varianza.
+
+## Otros ejemplos: Distribuciones Weibull
+
+En este caso, como la distribución Weibull tiene dos parámetros $a,b$ de localización y escala, la verosimilitud se verá en forma de contornos y no por densidades.El programa R tiene la densidad Weibull como (locoalización y escala):
+
+$$f_{X}(x) = \frac{a}{b}(\frac{x}{b})^{a-1} e^{-(\frac{x}{b})^{a}}.$$
+
+Mientras que nosotros tenemos la función de densidad definida de la siguiente manera ($\lambda$ es la tasa):
+$$ f_{X}(x) = \lambda \alpha x^{\alpha -1} e^{-\lambda t^{\alpha}}.$$
+
+Por lo que en este caso:
+
+- $a = \alpha.$
+- $\lambda = \frac{1}{b^{a}}.$
+
+
+
+Función de verosimilitud para obs exactas, censuradas por derecha e izquierda y truncadas por la izquierda:
+```{r ejemplosOtrasDist}
+#Obs excatas + cens der e izq + trunc izq 
+#(delta=1,exacta; delta=0,cens der; delta=2,cens izq)
+#verosimilitu para distintas a y b, por eso es una matriz
+lik4w<-function(a,b,tt,delta,u=rep(0,times=length(tt))){
+  m<-length(a)
+  outm<-matrix(NA,nrow=m,ncol=m)
+  for (j in 1:m){
+      n<-length(tt)
+      out<-1
+      for (i in 1:n){ if (is.na(tt[i])==FALSE) {
+        if (delta[i]==1) {out<-out*dweibull(tt[i],a,b[j])/(1-pweibull(u[i],a,b[j]))}
+        if (delta[i]==0) {out<-out*(1-pweibull(tt[i],a,b[j]))/(1-pweibull(u[i],a,b[j]))}
+        if (delta[i]==2) {out<-out*(pweibull(tt[i],a,b[j])-pweibull(u[i],a,b[j]))/(1-pweibull(u[i],a,b[j]))}
+      }
+    }
+    out
+    outm[,j]<-out #append
+  }
+  return(outm)
+}
+```
+
+Simulación para casos exactos, censura por derecha y truncamiento por izquierda.
+```{r ejemplosWeibull}
+#seed
+set.seed(8)
+#Ejemplos W
+alf0<-2
+lam0<-1
+#cahnge of parameter
+a0<-alf0
+b0<-lam0^(-1/a0)
+
+# Simulation
+n<-50
+x<-rweibull(n,a0,b0)
+#censura por derecha
 lamc<-2
 cen<-rexp(n,lamc)
 tt<-ifelse(x<=cen,x,cen)
 delta<-x
 delta<-ifelse(x<=cen,1,0)
-#cbind(x,cen,tt,delta)
-propc<-1-sum(delta)/n
-print(propc)
-#Truncamiento izquierda
+#truncamiento izquierda
 u<-seq(0.5,0.5,length.out=n)
 ttrunc<-ifelse(tt>=u,tt,NA)
-#cbind(x,tt,delta,u,ttrunc)
-#Evaluacion
-m<-100
-lam<-seq(0,5,,m)
-y1<-lik1(lam,x)
-y2<-lik2(lam,tt,delta)
-y3<-lik4(lam,ttrunc,delta,u)
-par(mfrow=c(1,1))
-plot(lam,y1/max(y1),type="l")
-lines(lam,y2/max(y2),col=2,lty=2)
-lines(lam,y3/max(y3),col=3,lty=3)
-abline(v=lam0,col=4)
-pos<-order(y1)[m]
-abline(v=lam[pos],col=1,lty=1)
-pos<-order(y2)[m]
-abline(v=lam[pos],col=2,lty=2)
-pos<-order(y3)[m]
-abline(v=lam[pos],col=3,lty=3)
 
-#Ejemplo 2 (efecto de tirar a la basura censura)
-lam0<-1
-n<-200
-x<-rexp(n,lam0)
-#Censura por derecha
-lamc<-2
-cen<-rexp(n,lamc)
-tt<-ifelse(x<=cen,x,cen)
-delta<-x
-delta<-ifelse(x<=cen,1,0)
-#cbind(x,cen,tt,delta)
-propc<-1-sum(delta)/n
-print(propc)
 #Evaluacion
 m<-100
-lam<-seq(0,5,,m)
-y1<-lik2(lam,tt[delta==1],delta[delta==1])
-length(tt[delta==1])
-y2<-lik2(lam,tt,delta)
-par(mfrow=c(1,1))
-plot(lam,y1/max(y1),type="l")
-lines(lam,y2/max(y2),col=2,lty=2)
-abline(v=lam0,col=4)
-pos<-order(y1)[m]
-abline(v=lam[pos],col=1,lty=1)
-pos<-order(y2)[m]
-abline(v=lam[pos],col=2,lty=2)
+a<-seq(0.2,3.8,,m)
+b<-seq(0.2,3.8,,m)
 
-#Ejemplo 3 (censura por la izq)
-lam0<-1
-n<-200
-x<-rexp(n,lam0)
-#Censura por derecha
-lamc<-2
-cen<-rexp(n,lamc)
-tt<-ifelse(x<=cen,x,cen)
-delta<-x
-delta<-ifelse(x<=cen,1,0)
-#cbind(x,cen,tt,delta)
-propc<-1-sum(delta)/n
-print(propc)
-#Censura por izquierda
-lamci<-0.5
-ceni<-rexp(n,lamci)
-tti<-ifelse(x>=ceni,x,ceni)
-deltai<-x
-deltai<-ifelse(x>=ceni,1,2)
-#cbind(x,ceni,tti,delta)
-propci<-1-length(deltai[deltai==1])/n
-print(propci)
-cbind(x,cen,tt,delta,ceni,tti,deltai)
-#Evaluacion
-m<-100
-lam<-seq(0,5,,m)
-y1<-lik1(lam,x)
-y2<-lik2(lam,tt,delta)
-y3<-lik3(lam,tti,deltai)
-par(mfrow=c(1,1))
-plot(lam,y1/max(y1),type="l")
-lines(lam,y2/max(y2),col=2,lty=2)
-lines(lam,y3/max(y3),col=3,lty=3)
-abline(v=lam0,col=4)
-pos<-order(y1)[m]
-abline(v=lam[pos],col=1,lty=1)
-pos<-order(y2)[m]
-abline(v=lam[pos],col=2,lty=2)
-pos<-order(y3)[m]
-abline(v=lam[pos],col=3,lty=3)
+#likelihood
+y1<-lik4w(a,b,x,seq(1,1,,n)) #like a rep, delta = 1 always, #exact
+y2<-lik4w(a,b,tt,delta) #censored
+y3<-lik4w(a,b,ttrunc,delta,u) #censored and trunced
 
-#Ejemplo 4 (doble censura)
-lam0<-1
-n<-50
-x<-rexp(n,lam0)
-#Censura por derecha
-#lamc<-0.5
-#cen<-rexp(n,lamc)
-cen<-rep(2,n)
-#Censura por izquierda
-#lamci<-2
-#ceni<-rexp(n,lamci)
-ceni<-rep(0.3,n)
-#Doble censura
-tt<-ifelse(x>=ceni,x,ceni)
-deltai<-x
-deltai<-ifelse(x>=ceni,1,2)
-delta[deltai==1]<-ifelse(tt[deltai==1]<=cen[deltai==1],1,0)
-tt[deltai==1]<-ifelse(x[deltai==1]<=cen[deltai==1],x[deltai==1],cen[deltai==1])
-#cbind(x,cen,ceni,tt,deltai,delta)
-prop.table(table(delta))
-#Evaluacion
-m<-100
-lam<-seq(0,5,,m)
-y1<-lik1(lam,x)
-y2<-lik2(lam,tt,delta)
-y3<-lik3(lam,tti,deltai)
+#plots
 par(mfrow=c(1,1))
-plot(lam,y1/max(y1),type="l")
-lines(lam,y2/max(y2),col=2,lty=2)
-lines(lam,y3/max(y3),col=3,lty=3)
-abline(v=lam0,col=4)
-pos<-order(y1)[m]
-abline(v=lam[pos],col=1,lty=1)
-pos<-order(y2)[m]
-abline(v=lam[pos],col=2,lty=2)
-pos<-order(y3)[m]
-abline(v=lam[pos],col=3,lty=3)
+
+# exact likelihood
+contour(x = a,y = b, z = y1,col=1)
+pos<-which(y1==max(y1),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=6,pch=18, cex = 1)
+# print(c(a[pos[1]],b[pos[2]]))
+points(a0,b0,col=4,pch=20)
+
+# censored likelihood
+contour(x = a,y = b, z= y2,col=2)
+pos<-which(y2==max(y2),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=2,pch=18, cex = 1)
+# print(c(a[pos[1]],b[pos[2]]))
+points(a0,b0,col=4,pch=20)
+
+# truncated likelihood
+contour(x = a,y = b,z = y3,col=3)
+pos<-which(y3==max(y3),arr.ind=TRUE)
+points(a[pos[1]],b[pos[2]],col=3,pch=15)
+# print(c(a[pos[1]],b[pos[2]]))
+points(alf0,lam0,col=4,pch=20)
+
+```
+
+REPRODUCIR CONTORNOS EN MISMA GRAFICA
+```{r}
+
+library(MASS)
+library(ggplot2)
+# first contour
+m <- c(.0, -.0)
+sigma <- matrix(c(1,.5,.5,1), nrow=2)
+data.grid <- expand.grid(s.1 = seq(-3, 3, length.out=200), s.2 = seq(-3, 3, length.out=200))
+q.samp <- cbind(data.grid, prob = mvtnorm::dmvnorm(data.grid, mean = m, sigma = sigma))
+
+plot1 <- ggplot(q.samp, aes(x = s.1, y = s.2, z = prob)) +
+  stat_contour(color = 'green')
+
+# second contour
+m1 <- c(1, 1)
+sigma1 <- matrix(c(1,-.5,-.5,1), nrow=2)
+set.seed(10)
+data.grid1 <- expand.grid(s.1 = seq(-3, 3, length.out=200), s.2 = seq(-3, 3, length.out=200))
+q.samp1 <- cbind(data.grid1, prob = mvtnorm::dmvnorm(data.grid1, mean = m1, sigma = sigma1))
+plot2 <- ggplot(q.samp1, aes(x = s.1, y = s.2, z = prob)) +
+  stat_contour(color = 'red')
+
+ggplot(q.samp1, aes(x = s.1, y = s.2, z = prob)) +
+  stat_contour(color = 'red') + 
+  stat_contour(data = q.samp, aes(x = s.1, y = s.2, z = prob), color = 'green')
+```
 

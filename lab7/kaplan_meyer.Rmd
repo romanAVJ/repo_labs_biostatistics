@@ -24,19 +24,13 @@ t<-Surv(bill$Vida,bill$Consecutivo/bill$Consecutivo)
 xfit1<-survfit(t~1)
 xfit2<-survfit(t~1,conf.type="plain")
 
-#look estimator
-print(xfit1)
-head(summary(xfit1))
-head(names(xfit1))
 ```
 
 
 ```{r}
 #plott estimator
-par(mfrow=c(1,1))
-plot(xfit1,conf.int=TRUE)
-plot(xfit1,conf.int=TRUE,lty=c(1,2,2),col=1:2)
-plot(xfit1,conf.int=TRUE,lty=c(1,2,2),col=1)
+plot(xfit1,conf.int=TRUE,lty=c(1,2,2),col=c(1,2,2))
+
 
 ```
 
@@ -47,7 +41,7 @@ library("mice") #here is the nelson-aalen estimator function
 xfit<-survfit(t~1,conf.type="log-log")
 
 #plot 
-plot(xfit,fun="cumhaz",col=1)
+plot(xfit,fun="cumhaz",col=c(1,2,2))
 
 
 
