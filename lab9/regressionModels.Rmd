@@ -2,6 +2,15 @@
 title: "Modelos de regresión"
 output: html_notebook
 ---
+```{r}
+library(survival)
+library(KMsurv)
+library(actuar)
+library(BGPhazard)
+library(rmutil)
+library(dplyr)
+```
+
 
 # Vida acelerada
 
@@ -9,7 +18,7 @@ Sabemos que los modelos de vida acelerada están dados por el siguiente modelo:
 
 $$T_{i} = \frac{T_0}{\varphi(X,\theta)}.$$
 
-Funciones de riego para modelos Weibull, LogLogigistico como también funciones de supervivencia.
+Funciones de riego para modelos Weibull, LogLogistico como también funciones de supervivencia.
 
 - Weibull:
 $$ $$
@@ -75,11 +84,11 @@ y2<-hw(t,x2,alpha,lam,theta)
 ymin<-min(y1,y2)
 ymax<-max(y1,y2)
 par(mfrow=c(1,2))
-plot(t,y0,type="l",ylim=c(ymin,ymax), ylab = 'h(t)')
+plot(t,y0,type="l",ylim=c(ymin,ymax), ylab = 'h')
 lines(t,y1,lty=1,col=2)
 lines(t,y2,lty=1,col=3)
 
-plot(t,y2/y1,type="l", ylab = 'h1(t)/h2(t)')
+plot(t,y2/y1,type="l", ylab = 'h1/h2')
 
 
 ```
@@ -178,24 +187,261 @@ lines(t,y2,lty=1,col=3)
 # Modelos de regresión 
 
 ## Ejemplo con tiempos de supervivencia de leucemia
+
+Veamos los datos a continuación.
+
 ```{r}
 #--- Ejemplo: Tiempos de supervivencia de leucemia ---
 #-Comparar ajustes de modelos Weibull, Loglogístico y Lognormal-
-attach(leucemia)
+leucemia<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Leucemia.txt",header=TRUE)
+
+leucemia %>% head() %>%  knitr::kable()
+```
+
+Veamos _gráficas diagnóstico_ para los datos.
+
+
+```{r}
 #-Gráficas de diagnóstico
 par(mfrow=c(1,1))
-plot(wbc,Time)
-plot(log(wbc),Time)
-boxplot(Time~AG)
+plot(leucemia$wbc,leucemia$Time)
+plot(log(leucemia$wbc),leucemia$Time)
+boxplot(leucemia$Time~leucemia$AG)
+```
+
+Ajustamos un modelo de vida acelerada es un modelo de regresión _log-lineal_, donde en este caso es:  $ln(T) = \alpha_{0} ln(wbc) + \alpha_{1} ln(wbc) + \alpha_{2}AG + \varepsilon$. En este caso $\mu_{0} = \mathbb{E}[ln(T_{0})]$ y $\varepsilon = ln(T) - \mu_{0}$ con media 0 y $\varepsilon \perp \bf{x}$.
+
+## Ajuste de modelos 
+
+- Weibull
+- Log Logistico
+- Log Normal
+
+
+```{r}
 #Ajuste del modelo
-xfitr<-survreg(Surv(Time,delta)~log(wbc)+AG,data=leucemia,dist="weibull")
+xfitr <- survreg( Surv(Time,delta)~log(wbc)+AG,data=leucemia,dist="weibull")
+xfitr2 <- survreg( Surv(Time,delta)~log(wbc)+AG,data=leucemia,dist="loglogistic")
+xfitr3 <- survreg( Surv(Time,delta)~log(wbc)+AG,data=leucemia,dist="lognormal")
+```
+
+Caso modelo __Weibull__.
+
+```{r}
+summary( xfitr)
+```
+
+Caso modelo __Log logístico__.
+
+```{r}
+summary( xfitr2)
+```
+
+Caso modelo __Log normal__.
+
+```{r}
+summary( xfitr3)
+```
+
+
+La interpretación del modelo es el siguiente para el modelo _Weibull_:
+
+- Para la _escala_, __no__ nos interesa ver su significancia, pues es solo un parámetro de escala, no de localización. Además el iinterés es sobre 1 y no sobre 0 (su valor).
+
+- Para la variable dummie _AG_, elevamos a la $e$ y restemos 1 para ver el _porcentaje de cambio_ respecto si es 0 o 1. En este caso vemos que `r (exp(xfitr$coefficients['AG']) - 1) * 100` % con respecto al cambio de 0 a 1.
+
+
+Interpretación para el "mejor" modelo:
+
+- El modelo _lognormal_ presenta una log-verosimilitud menor que los demás. Por tanto nos quedamos con dicho modelo.
+
+## Predicciones
+
+### Ajuste de respuesta $\hat{y}$.
+
+Hacemos una gráfica de $y \quad \text{v.s.} \quad \hat{y}$, para ver que tal se justa el modelo estimado. Los ceros y unos no deberían "afectar".
+
+Se recomienda distinguir entre ls datos observados y los censurados, es decir, hacer una distinción $\delta_{i} \quad \forall i$.
+
+```{r}
+#Predicciones de E(T0)
+par(mfrow = c(2,2))
+
+# weibull model
+pred <- predict( xfitr, type = "response")
+plot(leucemia$Time, pred, type="n", main = 'Modelo Weibull')
+lines(leucemia$Time, leucemia$Time, col = 2)
+text(leucemia$Time, pred, labels = delta)
+
+# lognormal model
+pred <- predict( xfitr2, type = "response")
+plot(leucemia$Time, pred, type="n", main = 'Modelo Lognormal')
+lines(leucemia$Time, leucemia$Time, col = 3)
+text(leucemia$Time, pred, labels = delta)
+
+
+# loglogistic model
+pred <- predict( xfitr3, type = "response")
+plot(leucemia$Time, pred, type="n", main = 'Modelo Loglogístico')
+lines(leucemia$Time, leucemia$Time, col = 4)
+text(leucemia$Time, pred, labels = delta)
+
+
+
+
+```
+
+
+### Gráficas de supervivencia
+
+La gráfica siguiente mostrará como cambia la supervivencia para el caso que $AG = 0$ (color negro) vs $AG = 1$ (color rojo) en el modelo Weibull. 
+
+Vemos que hay una supervivencia mucho mayor para el caso que $AG = 1$.
+
+```{r}
+# AG0
+# predictions
+pred<-predict(xfitr,newdata=list(wbc=1:100,AG=rep(0,100)),type="quantile",p=c(.1, .5, .9))
+matplot(1:100,pred,type="l",lty=c(2,1,2),col=c(1,1,1))
+
+# AG1
+# predictions
+pred<-predict(xfitr,newdata=list(wbc=1:100,AG=rep(1,100)),type="quantile",p=c(.1, .5, .9))
+matlines(1:100,pred,lty=c(2,1,2),col=c(2,2,2))
+
+
+```
+
+
+# Ejericio 2: Fallas de aparatos. Sin censura. Nelson 1972.
+
+En este ejercicio no hay censura. 
+
+```{r}
+# data
+breakdown<-read.table("http://allman.rhon.itam.mx/~lnieto/index_archivos/Breakdown.txt",header=TRUE)
+
+# see data
+breakdown %>% head() %>% knitr::kable()
+```
+
+Primero hacemos un EDA para ver qué modelo es el que mejor se pudiera adecuar. Se hace un diagnóstico para un poosible modelo Weibull, a sugerencia de Nelson.
+
+```{r}
+#Comparar ajustes de modelos Weibull, Loglogístico y Lognormal-
+attach(breakdown)
+
+# Gráficas de diagnóstico
+t <-Surv(BreakTimes,seq(1,1,,length(BreakTimes)))
+xfit <-survfit(t~VoltageLev)
+n <- c(0,cumsum(xfit$n)) #number of obs of that VoltageLev 
+                          # is made like this because VoltageLev is sorted (see table(VoltageLev))
+
+# plot
+for (l in 1:7){
+  tj<-xfit$time[(n[l]+1):n[l+1]] # los intervalos para cada nivel
+  sj<-xfit$surv[(n[l]+1):n[l+1]]
+  k<-length(tj)
+  sje<-0.5*sj+0.5*c(1,sj[-k])
+  plot(log(tj),log(-log(sje)),main=paste("VoltageLev=",l))
+}
+```
+
+EDA para el voltaje:
+
+```{r}
+boxplot(BreakTimes ~ VoltageLev)
+
+```
+
+## Ajuste de modelos.
+
+Observamos que el modelo Weibull ajusta mejor el modelo. Pues su logverosimilitud es la más grande de todas.
+```{r}
+#Ajuste del modelo
+xfitr <- survreg(t ~ factor(VoltageLev),data=breakdown,dist="weibull")
+xfitr2 <- survreg(t ~ factor(VoltageLev),data=breakdown,dist="lognormal")
+xfitr3 <- survreg(t ~ factor(VoltageLev),data=breakdown,dist="loglogistic")
+```
+
+
+```{r}
 summary(xfitr)
+```
+
+
+```{r}
+summary(xfitr2)
+```
+
+
+```{r}
+summary(xfitr3)
+```
+
+
+__NOTA:__
+
+En este modelo el volatje es de cambio de 2 a 2, para hacer una _interpretación_ de los coeficientes debemos multiplicar por un 2 dentro de la exponencial, es decir 
+
+$$ 100 (e^{\alpha * 2} - 1) \%$$
+es el cambio de 2 a 2.
+
+## Ajustes de curvas paramétricas
+
+### $y \quad \text{v.s.} \hat{y}$
+
+Vemos que hay bastante apalancamiento.
+```{r}
 #Predicciones1
 pred<-predict(xfitr,type="response")
-plot(Time,pred,type="n")
-lines(Time,Time,col=2)
-text(Time,pred,labels=delta)
+plot(BreakTimes,pred)
+lines(BreakTimes,BreakTimes,col=2)
 ```
+
+### Ajuste de modelos paramétricos vs KM
+
+Las gráficas muestra un distinto color para cada nivel del voltaje. 
+
+```{r}
+#Predicciones2
+pct<-1:98/100
+vl<-as.numeric(names(table(VoltageLev)))
+pred<-predict(xfitr,newdata=list(VoltageLev=vl),type="quantile",p=pct)
+plot(xfit,col=1:7,lty=2, main = 'KM vs Parametricos')
+matlines(t(pred),1-pct,col=1:7,lty=1)
+```
+
+### Predecir un voltaje 20
+
+__NOTA!__:
+
+- Como el modelo es por factores, el modelo sólo puede predecir para los niveles del voltaje, y no existe el nivel 20. Por lo que no se puede predecir en este caso.
+
+- Se debe cambiar a un modelo con la variable para el voltaje como _numérica_ para poder crear mi predicción.
+
+```{r}
+xfitr4 <- survreg(t ~ VoltageLev,data=breakdown,dist="weibull")
+
+#Predicciones3
+pct<-1:98/100
+vl<-20
+pred2<-predict(xfitr4,newdata=list(VoltageLev=vl),type="quantile",p=pct)
+plot(xfit,col=1,lty=2, main = 'KM vs predicción lvl 20')
+lines(t(pred2),1-pct,col=2,lty=1)
+#Detach dataset
+
+detach(breakdown)
+```
+
+
+
+
+
+
+
+
+
 
 
 
